@@ -1,6 +1,6 @@
 # Status page
 
-**Status:** Active — scaffold landed 2026-10-07; prober next, then the page.
+**Status:** Active — scaffold and prober landed 2026-10-07; checks + install on the box next, then the page.
 
 One page that says whether each public site on the shared VPS answers, plus an alert when one stops. Watches every tenant and belongs to none of them.
 
@@ -31,16 +31,17 @@ Three words, three colours:
 
 ## Prober
 
-Runs on the shared box as a systemd timer, following the heartbeat pattern from the `shared-vps` skill:
+Lives in [`prober/`](../../prober/). Runs on the shared box as a systemd timer, following the heartbeat pattern from the `shared-vps` skill:
 
-- One `probe.sh` script, invoked by `status-probe.service`, scheduled by `status-probe.timer`.
-- Ping keys sit in `/etc/status-page/probe.env` — root:root 0600, read through `EnvironmentFile=-`, piped to `curl -K -` on stdin so they never reach argv.
-- The script always exits 0. A missing key or unreachable healthchecks.io means silence, which the check turns into an alert on its own.
-- One healthchecks.io check per hostname, slug = hostname, `OnCalendar` mirroring the timer in Europe/Brussels, grace covering `RandomizedDelaySec` plus the run.
+- `probe.sh` walks the target list (hostnames, paths, expected codes) at the top of the file. Add a tenant there, add its `PING_<slug>` to the env file.
+- `status-probe.service` runs the script as a oneshot with `/etc/status-page/probe.env` loaded via `EnvironmentFile=-`. Ping URLs reach curl on stdin via `-K -` so they never appear in argv.
+- `status-probe.timer` fires every 3 minutes with 30s jitter, `Persistent=true`.
+- The script always exits 0 — a missing key or unreachable healthchecks.io becomes silence, which the check turns into an alert on its own after grace.
+- Service is hardened via systemd directives (`ProtectSystem=strict`, `RestrictAddressFamilies=AF_INET AF_INET6`, syscall filter).
+
+Checks are made by hand on healthchecks.io, slug = hostname, `*/3 * * * *` Europe/Brussels, grace 2 minutes. See [`prober/README.md`](../../prober/README.md) for the install flow and the drill step.
 
 Blind spot: the box resolves its own hostnames to its public IPs on `eth0`, so a request to its own hostname never leaves the box. The netcup firewall and upstream routing go untested. Second-prober options are in `## Open` below.
-
-Install script bootstraps `/etc/status-page/`, drops the units in `/etc/systemd/system/`, prompts for an env file if none exists, enables the timer. Modeled on vyoh's and Engram's backup install scripts.
 
 ## Page
 
@@ -52,10 +53,10 @@ The page refetches on an interval (every 60s is enough; healthchecks.io updates 
 
 ## Next action
 
-1. Build the prober (shell script + two units + install script).
-2. Create the healthchecks.io project and the four checks; drop the ping keys into `probe.env.example` as placeholders.
-3. Install on the box, drill one `/fail` through the real script and key file, confirm the alert.
-4. Wire the page: fetch badge JSON, render the three states.
+1. Create the healthchecks.io project and the four checks (slug = hostname, tag = hostname, `*/3 * * * *` Europe/Brussels, grace 2 minutes).
+2. Install on the box: `rsync -av --delete prober/ vyoh:/tmp/status-probe/` → `ssh vyoh "cd /tmp/status-probe && sudo bash install.sh"`, fill `/etc/status-page/probe.env`, enable the timer.
+3. Drill one `/fail` through the real script and key file, confirm the alert.
+4. Wire the page: fetch badge JSON per tag, render the three states.
 5. GitHub Pages + CNAME DNS + cert.
 6. Smoke the live page over IPv4 and IPv6.
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Timer for status.vyoh.gg prober
+Documentation=https://github.com/sergeantjonas/status.vyoh.gg
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=3min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=status-probe.service
+
+[Install]
+WantedBy=timers.target
