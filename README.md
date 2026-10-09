@@ -1,11 +1,11 @@
 # status.vyoh.gg
 
-One page that says whether each public site on the shared VPS answers, plus an alert when one stops.
+One page that says whether each public site on the shared VPS answers, plus a Discord ping when one changes state.
 
 - **Live:** <https://status.vyoh.gg> (GitHub Pages).
-- **Prober:** systemd timer on the box the page watches.
-- **Alerts:** [healthchecks.io](https://healthchecks.io), out of band from the box.
+- **Prober:** GitHub Actions scheduled workflow, every ~5 minutes. No infrastructure on the box being watched.
+- **Alerts:** Discord webhook, posted directly from the Action on state transitions.
 
-The page is static HTML and JS with no build step and no dependencies. It reads badge JSON from healthchecks.io straight from the browser; the endpoint answers `Access-Control-Allow-Origin: *`, so no backend sits between them.
+Pure static HTML and JS, no build step. `probe.py` walks `targets.toml`, writes `status.json`, and the Action deploys it to Pages. Editing `targets.toml` is the whole workflow for adding or removing monitored sites.
 
 Planning and decisions live under [docs/working-notes/](docs/working-notes/). The cross-project constraint ("the box cannot watch itself") lives in [commonplace](https://github.com/sergeantjonas/commonplace/blob/main/status-page.md), since the same rule applies to anything else that reports on the box.

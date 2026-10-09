@@ -1,0 +1,39 @@
+# Prober input. Each run of .github/workflows/probe.yml iterates these
+# blocks and writes status.json. Edit to add or remove monitored sites.
+#
+# Fields per [[target]]:
+#   host     (required) — public hostname, probed over HTTPS.
+#   path     (default: "/") — URL path.
+#   expected (default: [200, 301, 302]) — acceptable response codes.
+#   group    (default: "other") — display grouping on the status page.
+
+[[target]]
+host = "vyoh.gg"
+group = "critical"
+
+[[target]]
+host = "api.vyoh.gg"
+path = "/health"
+group = "critical"
+
+[[target]]
+host = "engram.vyoh.gg"
+group = "critical"
+
+[[target]]
+host = "api.engram.vyoh.gg"
+path = "/ready"
+group = "critical"
+
+# Reverse-proxied self-hosted containers go below. Add a block per hostname
+# when you add a new vhost on the netcup box. Examples:
+#
+# [[target]]
+# host = "sonarr.vyoh.gg"
+# path = "/ping"
+# group = "bytesized"
+#
+# [[target]]
+# host = "plex.vyoh.gg"
+# path = "/identity"
+# group = "bytesized"

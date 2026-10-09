@@ -13,25 +13,160 @@
 			--muted: light-dark(#666, #999);
 			--bg: light-dark(#fafafa, #111);
 			--rule: light-dark(#e5e5e5, #262626);
+			--up: #15803d;
+			--down: #b91c1c;
+			--warn: #b45309;
 		}
 		html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
 		body {
 			font: 16px/1.5 system-ui, sans-serif;
 			max-width: 42rem;
 			margin: 0 auto;
-			padding: 4rem 1.5rem;
+			padding: 3rem 1.5rem 4rem;
 		}
-		h1 { font-size: 1.5rem; margin: 0 0 0.5rem; font-weight: 600; }
-		p { margin: 0 0 1rem; color: var(--muted); }
-		footer { margin-top: 4rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.875rem; }
-		a { color: inherit; }
+		header { margin-bottom: 2rem; }
+		h1 { font-size: 1.5rem; margin: 0 0 0.25rem; font-weight: 600; }
+		.subtitle { color: var(--muted); font-size: 0.9rem; }
+		.banner {
+			background: var(--warn);
+			color: #fff;
+			padding: 0.75rem 1rem;
+			border-radius: 4px;
+			margin-bottom: 1.5rem;
+			font-size: 0.9rem;
+		}
+		.banner[hidden] { display: none; }
+		section { margin-bottom: 1.5rem; }
+		h2 {
+			font-size: 0.75rem;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			color: var(--muted);
+			font-weight: 600;
+			margin: 0 0 0.5rem;
+		}
+		ul { list-style: none; padding: 0; margin: 0; }
+		li {
+			display: flex;
+			align-items: baseline;
+			gap: 0.75rem;
+			padding: 0.5rem 0;
+			border-bottom: 1px solid var(--rule);
+		}
+		li:last-child { border-bottom: 0; }
+		.dot {
+			display: inline-block;
+			width: 0.6rem;
+			height: 0.6rem;
+			border-radius: 50%;
+			flex-shrink: 0;
+		}
+		.state-up .dot { background: var(--up); }
+		.state-down .dot { background: var(--down); }
+		.host { flex: 1; font-family: ui-monospace, Menlo, monospace; font-size: 0.9rem; }
+		.detail { color: var(--muted); font-size: 0.85rem; }
+		.state-down .detail { color: var(--down); }
+		footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.85rem; }
+		footer a { color: inherit; }
+		.loading { color: var(--muted); font-style: italic; }
 	</style>
 </head>
 <body>
-	<h1>status.vyoh.gg</h1>
-	<p>Nothing to report here yet. The prober and the page are still being built.</p>
+	<header>
+		<h1>status.vyoh.gg</h1>
+		<p class="subtitle" id="subtitle">Loading…</p>
+	</header>
+
+	<div class="banner" id="stale-banner" hidden>
+		Monitoring looks late — <span id="stale-age"></span> since the last check. The prober itself may be delayed.
+	</div>
+
+	<main id="groups" class="loading">Loading status…</main>
+
 	<footer>
-		<a href="https://github.com/sergeantjonas/status.vyoh.gg">github.com/sergeantjonas/status.vyoh.gg</a>
+		Probed from GitHub Actions every ~5 minutes.
+		<a href="https://github.com/sergeantjonas/status.vyoh.gg">Source</a>.
 	</footer>
+
+	<script>
+		const STALE_MINUTES = 20;
+
+		function fmtAge(seconds) {
+			const m = Math.round(seconds / 60);
+			if (m < 1) return 'just now';
+			if (m < 60) return `${m} min ago`;
+			const h = Math.round(m / 60);
+			if (h < 24) return `${h} hr ago`;
+			return `${Math.round(h / 24)} d ago`;
+		}
+
+		function render(data) {
+			const now = Math.floor(Date.now() / 1000);
+			const age = now - (data.generated_at || 0);
+			document.getElementById('subtitle').textContent =
+				data.generated_at ? `Checked ${fmtAge(age)}` : 'No data yet.';
+
+			const stale = data.generated_at && age > STALE_MINUTES * 60;
+			const banner = document.getElementById('stale-banner');
+			banner.hidden = !stale;
+			if (stale) document.getElementById('stale-age').textContent = fmtAge(age);
+
+			const groups = {};
+			for (const t of data.targets || []) {
+				(groups[t.group || 'other'] ||= []).push(t);
+			}
+
+			const container = document.getElementById('groups');
+			container.classList.remove('loading');
+			container.innerHTML = '';
+
+			if (!data.targets || data.targets.length === 0) {
+				container.textContent = 'No targets configured.';
+				return;
+			}
+
+			const order = ['critical', ...Object.keys(groups).filter(g => g !== 'critical').sort()];
+			for (const name of order) {
+				if (!groups[name]) continue;
+				const section = document.createElement('section');
+				const h = document.createElement('h2');
+				h.textContent = name;
+				section.appendChild(h);
+				const ul = document.createElement('ul');
+				for (const t of groups[name]) {
+					const li = document.createElement('li');
+					li.className = `state-${t.state}`;
+					const dot = document.createElement('span');
+					dot.className = 'dot';
+					const host = document.createElement('span');
+					host.className = 'host';
+					host.textContent = t.host + (t.path && t.path !== '/' ? t.path : '');
+					const detail = document.createElement('span');
+					detail.className = 'detail';
+					if (t.state === 'down') {
+						detail.textContent = t.code ? `HTTP ${t.code}` : (t.error ? 'no response' : 'down');
+					} else {
+						detail.textContent = 'up';
+					}
+					li.append(dot, host, detail);
+					ul.appendChild(li);
+				}
+				section.appendChild(ul);
+				container.appendChild(section);
+			}
+		}
+
+		async function load() {
+			try {
+				const r = await fetch('./status.json', { cache: 'no-store' });
+				render(await r.json());
+			} catch (e) {
+				document.getElementById('groups').textContent = 'Could not load status.json.';
+			}
+		}
+
+		load();
+		setInterval(load, 60_000);
+	</script>
 </body>
 </html>

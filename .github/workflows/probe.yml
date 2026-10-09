@@ -1,0 +1,54 @@
+name: probe
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch previous status.json
+        run: |
+          curl -fsS -o status.json https://status.vyoh.gg/status.json \
+            || echo '{"generated_at":0,"targets":[]}' > status.json
+
+      - name: Probe
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python probe.py
+
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp index.html status.json CNAME _site/
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
