@@ -65,8 +65,16 @@ The page detects the third case itself: if `status.json`'s `generated_at` is old
 7. **Drill:** `gh workflow run probe` from the laptop. First run after secrets land → no transitions → exit 0. Then edit `targets.toml` to add a bogus host like `broken.vyoh.gg`, push, confirm the Discord message arrives via the hub on the next scheduled run.
 8. **Add Bytesized hostnames** to `targets.toml` as their nginx vhosts land on netcup.
 
+## History
+
+Per-target 90-day history lives inside `status.json` itself (shipped 2026-10-10). Shape: a list of `[date, state]` pairs per target, chronological oldest-first, capped at 90 entries. The probe folds each run into "today" with worst-wins (one failed probe flips the day red). Fresh targets start with just today's entry; the page pads the left with "no data" bars so every host shows a fixed-width 90-bar strip.
+
+Day boundary is UTC on the GitHub runner — close enough to Europe/Brussels that a brief outage straddling midnight might paint two days instead of one, but the alternative (tracking per-timezone) buys nothing for a status page.
+
+Why in `status.json` and not a separate `history.json`: fourteen hosts × 90 entries × ~25 bytes ≈ 32 KB; well under the point where a split would help. One file, one fetch, no second deploy step.
+
 ## Open
 
 - **Backups on the page.** Healthchecks.io still runs the backup checks for vyoh/engram. Those badges could live on this page too, but it would mix "is the public site up" with "did last night's backup run." Deferred until the question matters.
 - **Certificate expiry.** A probe could fail its check when the served certificate comes within N days of expiry, catching a silent Certbot failure. Not wired yet.
-- **History.** `status.json` only holds the current state. If we want a day/week view, we'd persist a `history.json` or write append-only snapshots. Deferred until useful.
+- **Hour-level history.** Current rollup is per-day. If a day-granularity strip is too coarse (one 5-min blip paints a whole day red), bump to per-hour: 24 × 90 = 2160 bars per host, still fine for storage, tighter rendering. Deferred until the day-level view's weakness bites.

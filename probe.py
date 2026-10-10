@@ -13,6 +13,7 @@ the box-is-down alert (the hub lives on the same box the prober watches).
 
 from __future__ import annotations
 
+import datetime
 import json
 import os
 import socket
@@ -23,6 +24,8 @@ import tomllib
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+HISTORY_DAYS = 90
 
 REPO = Path(__file__).resolve().parent
 TARGETS = REPO / "targets.toml"
@@ -105,10 +108,34 @@ def load_previous() -> dict[str, dict]:
 	return {t["host"]: t for t in data.get("targets", [])}
 
 
+def update_history(prev_history: list, today: str, state: str) -> list:
+	"""Fold today's probe result into a per-day history. Worst wins per day
+	(a single failure flips the day red). Caps at HISTORY_DAYS entries,
+	chronologically ordered oldest-first."""
+	# Normalise prev entries defensively — a prior malformed status.json
+	# shouldn't crash the probe.
+	history = []
+	for entry in prev_history or []:
+		if isinstance(entry, list) and len(entry) == 2:
+			history.append([entry[0], entry[1]])
+
+	if history and history[-1][0] == today:
+		# Same day: worst wins.
+		if state == "down":
+			history[-1][1] = "down"
+	else:
+		history.append([today, state])
+
+	if len(history) > HISTORY_DAYS:
+		history = history[-HISTORY_DAYS:]
+	return history
+
+
 def main() -> None:
 	config = tomllib.loads(TARGETS.read_text())
 	previous = load_previous()
 	now = int(time.time())
+	today = datetime.datetime.utcfromtimestamp(now).strftime("%Y-%m-%d")
 	results: list[dict] = []
 	transitions: list[tuple[str, str, int, str | None]] = []
 
@@ -121,6 +148,7 @@ def main() -> None:
 		ok, code, err = probe(host, path, expected)
 		state = "up" if ok else "down"
 		prev = previous.get(host, {})
+		history = update_history(prev.get("history", []), today, state)
 
 		results.append({
 			"host": host,
@@ -132,6 +160,7 @@ def main() -> None:
 			"checked_at": now,
 			"last_ok": now if ok else prev.get("last_ok", 0),
 			"last_fail": now if not ok else prev.get("last_fail", 0),
+			"history": history,
 		})
 
 		prev_state = prev.get("state")
