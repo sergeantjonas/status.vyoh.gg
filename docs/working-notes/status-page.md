@@ -67,14 +67,18 @@ The page detects the third case itself: if `status.json`'s `generated_at` is old
 
 ## History
 
-Per-target 90-day history lives inside `status.json` itself (shipped 2026-10-10). Shape: a list of `[date, state]` pairs per target, chronological oldest-first, capped at 90 entries. The probe folds each run into "today" with worst-wins (one failed probe flips the day red). Fresh targets start with just today's entry; the page pads the left with "no data" bars so every host shows a fixed-width 90-bar strip.
+Per-target per-probe history lives inside `status.json` itself. Shape: a list of `[unix_ts, state]` pairs per target, chronological oldest-first, capped at 288 entries (≈ 24h at the current 5-min cadence). The probe appends one entry per run and rolls off the oldest once the cap is hit.
 
-Day boundary is UTC on the GitHub runner — close enough to Europe/Brussels that a brief outage straddling midnight might paint two days instead of one, but the alternative (tracking per-timezone) buys nothing for a status page.
+Decided 2026-10-10 to go per-probe rather than per-day worst-wins (the first implementation that same day). Per-day rollup made a single 5-min outage paint a whole 24h bar red, which was wrong for a page where you'd want to see "mostly up, one blip at 03:42" at a glance. Per-probe shows exactly that pattern — one red tick in a strip of green — and matches the user's actual mental model ("every previous ping").
 
-Why in `status.json` and not a separate `history.json`: fourteen hosts × 90 entries × ~25 bytes ≈ 32 KB; well under the point where a split would help. One file, one fetch, no second deploy step.
+Window chosen is 24h because 288 bars already pushes layout density; longer windows would need either narrower bars (approaching invisible) or a horizontal scroll. Hour-level or day-level aggregation for a *longer* window is an open option if 24h ever feels too short.
+
+Fresh targets start with just the latest entry; the page pads the left with "no data" bars so every host shows a fixed-width 288-bar strip. Within a day of continuous runs the pad disappears and the strip is live.
+
+Why in `status.json` and not a separate `history.json`: fourteen hosts × 288 entries × ~25 bytes ≈ 100 KB; one file, one fetch, one deploy step. If storage ever becomes a concern we can compact (state as single char, timestamps as deltas from `generated_at`), but it isn't close yet.
 
 ## Open
 
 - **Backups on the page.** Healthchecks.io still runs the backup checks for vyoh/engram. Those badges could live on this page too, but it would mix "is the public site up" with "did last night's backup run." Deferred until the question matters.
 - **Certificate expiry.** A probe could fail its check when the served certificate comes within N days of expiry, catching a silent Certbot failure. Not wired yet.
-- **Hour-level history.** Current rollup is per-day. If a day-granularity strip is too coarse (one 5-min blip paints a whole day red), bump to per-hour: 24 × 90 = 2160 bars per host, still fine for storage, tighter rendering. Deferred until the day-level view's weakness bites.
+- **Longer-than-24h view.** The per-probe strip only covers the last 24h. A longer window (e.g., 7-day or 90-day) would need either per-hour / per-day aggregation (coarser but more history) or a scrollable strip. Deferred until the 24h window actually feels too short — right now the question "did it break today?" is what the page needs to answer.

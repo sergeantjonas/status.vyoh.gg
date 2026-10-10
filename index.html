@@ -131,27 +131,30 @@
 			word-break: break-all;
 		}
 		.history {
-			display: flex;
-			align-items: center;
-			gap: 2px;
-			height: 14px;
+			display: grid;
+			grid-template-columns: repeat(288, 1fr);
+			gap: 0;
+			height: 16px;
+			width: 100%;
+			border-radius: 2px;
+			overflow: hidden;
 		}
 		.h-bar {
-			width: 3px;
-			height: 12px;
 			background: var(--idle-dot);
-			border-radius: 1px;
-			flex-shrink: 0;
+			opacity: 0.25;
+			min-width: 0;
+			transition: opacity 0.15s;
 		}
-		.h-bar[data-state="up"] { background: var(--up-dot); opacity: 0.55; }
-		.h-bar[data-state="up"]:last-child { opacity: 1; }
-		.h-bar[data-state="down"] { background: var(--down-dot); }
+		.h-bar[data-state="up"] { background: var(--up-dot); opacity: 0.75; }
+		.h-bar[data-state="down"] { background: var(--down-dot); opacity: 1; }
+		.h-bar:last-child[data-state="up"] { opacity: 1; }
+		.h-bar:hover { opacity: 1; outline: 1px solid var(--fg); }
 		.history-caption {
 			display: flex;
 			justify-content: space-between;
-			font-size: 0.7rem;
+			font-size: 0.68rem;
 			color: var(--muted);
-			margin-top: 0.25rem;
+			margin-top: 0.3rem;
 			letter-spacing: 0.02em;
 		}
 		.row .pill {
@@ -214,7 +217,7 @@
 
 	<script>
 		const STALE_MINUTES = 20;
-		const HISTORY_DAYS = 90;
+		const HISTORY_ENTRIES = 288;
 		const GROUP_ORDER = ['critical', 'bytesized'];
 		const GROUP_LABEL = {
 			critical: 'Critical',
@@ -264,22 +267,34 @@
 		}
 
 		function renderHistory(history) {
-			// history is a list of [date, state] pairs, oldest first, up to HISTORY_DAYS entries.
-			// Pad the left with gaps for days with no data so every host shows a fixed-width strip.
-			const byDate = new Map(history.map(([d, s]) => [d, s]));
+			// history is a list of [unix_ts, state] pairs, oldest first,
+			// up to HISTORY_ENTRIES entries. Older entries scroll off the left.
+			// Pad the left with empty "no data" bars so the strip stays
+			// fixed-width even when a target is new.
 			const strip = document.createElement('div');
 			strip.className = 'history';
 
-			const end = new Date(); // UTC day today
+			const timeFmt = new Intl.DateTimeFormat(undefined, {
+				hour: '2-digit', minute: '2-digit',
+			});
+			const fullFmt = new Intl.DateTimeFormat(undefined, {
+				month: 'short', day: 'numeric',
+				hour: '2-digit', minute: '2-digit',
+			});
+
+			const padCount = HISTORY_ENTRIES - history.length;
 			const bars = [];
-			for (let i = HISTORY_DAYS - 1; i >= 0; i--) {
-				const d = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate() - i));
-				const key = d.toISOString().slice(0, 10);
-				const state = byDate.get(key);
+			for (let i = 0; i < padCount; i++) {
 				const bar = document.createElement('span');
 				bar.className = 'h-bar';
-				if (state === 'up' || state === 'down') bar.dataset.state = state;
-				bar.title = state ? `${key} · ${state}` : `${key} · no data`;
+				bar.title = 'no data yet';
+				bars.push(bar);
+			}
+			for (const [ts, state] of history) {
+				const bar = document.createElement('span');
+				bar.className = 'h-bar';
+				bar.dataset.state = state;
+				bar.title = `${fullFmt.format(new Date(ts * 1000))} · ${state}`;
 				bars.push(bar);
 			}
 			strip.append(...bars);

@@ -13,7 +13,6 @@ the box-is-down alert (the hub lives on the same box the prober watches).
 
 from __future__ import annotations
 
-import datetime
 import json
 import os
 import socket
@@ -25,7 +24,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-HISTORY_DAYS = 90
+# One entry per probe cycle. 288 ≈ 24h at the current 5-min cadence.
+# A single bad probe shows as one red tick, not a whole day going red.
+HISTORY_ENTRIES = 288
 
 REPO = Path(__file__).resolve().parent
 TARGETS = REPO / "targets.toml"
@@ -108,26 +109,18 @@ def load_previous() -> dict[str, dict]:
 	return {t["host"]: t for t in data.get("targets", [])}
 
 
-def update_history(prev_history: list, today: str, state: str) -> list:
-	"""Fold today's probe result into a per-day history. Worst wins per day
-	(a single failure flips the day red). Caps at HISTORY_DAYS entries,
-	chronologically ordered oldest-first."""
-	# Normalise prev entries defensively — a prior malformed status.json
-	# shouldn't crash the probe.
+def update_history(prev_history: list, ts: int, state: str) -> list:
+	"""Append this probe's result to the per-probe history, cap at
+	HISTORY_ENTRIES, chronologically ordered oldest-first."""
+	# Normalise defensively — a prior malformed status.json shouldn't crash.
 	history = []
 	for entry in prev_history or []:
-		if isinstance(entry, list) and len(entry) == 2:
+		if isinstance(entry, list) and len(entry) == 2 and isinstance(entry[0], int):
 			history.append([entry[0], entry[1]])
 
-	if history and history[-1][0] == today:
-		# Same day: worst wins.
-		if state == "down":
-			history[-1][1] = "down"
-	else:
-		history.append([today, state])
-
-	if len(history) > HISTORY_DAYS:
-		history = history[-HISTORY_DAYS:]
+	history.append([ts, state])
+	if len(history) > HISTORY_ENTRIES:
+		history = history[-HISTORY_ENTRIES:]
 	return history
 
 
@@ -135,7 +128,6 @@ def main() -> None:
 	config = tomllib.loads(TARGETS.read_text())
 	previous = load_previous()
 	now = int(time.time())
-	today = datetime.datetime.utcfromtimestamp(now).strftime("%Y-%m-%d")
 	results: list[dict] = []
 	transitions: list[tuple[str, str, int, str | None]] = []
 
@@ -148,7 +140,7 @@ def main() -> None:
 		ok, code, err = probe(host, path, expected)
 		state = "up" if ok else "down"
 		prev = previous.get(host, {})
-		history = update_history(prev.get("history", []), today, state)
+		history = update_history(prev.get("history", []), now, state)
 
 		results.append({
 			"host": host,
