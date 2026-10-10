@@ -287,12 +287,12 @@
 	<main id="groups" class="skeleton"></main>
 
 	<footer>
-		<span>Probed from GitHub every 5 min · built in a weekend.</span>
+		<span>Probed from GitHub every ~15 min · built in a weekend.</span>
 		<a href="https://github.com/sergeantjonas/status.vyoh.gg">github.com/sergeantjonas/status.vyoh.gg</a>
 	</footer>
 
 	<script>
-		const STALE_MINUTES = 20;
+		const STALE_MINUTES = 90;
 		const HISTORY_ENTRIES = 288;
 		const GROUP_ORDER = ['critical', 'bytesized'];
 		const GROUP_LABEL = {
@@ -536,9 +536,14 @@
 				? `${t.state === 'up' ? 'Up' : 'Down'} for ${fmtDuration(streak)}`
 				: '—';
 			const right = document.createElement('span');
-			right.textContent = uptime !== null
-				? `${uptime.toFixed(uptime >= 99.95 ? 0 : 2)}% uptime · last ${history.length} probes`
-				: 'no data';
+			if (uptime !== null && history.length >= 2) {
+				const windowSec = history[history.length - 1][0] - history[0][0];
+				right.textContent = `${uptime.toFixed(uptime >= 99.95 ? 0 : 2)}% uptime · over ${fmtDuration(windowSec)}`;
+			} else if (uptime !== null) {
+				right.textContent = `${uptime.toFixed(0)}% uptime`;
+			} else {
+				right.textContent = 'no data';
+			}
 			meta.append(left, right);
 			main.append(meta);
 

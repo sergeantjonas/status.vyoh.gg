@@ -2,7 +2,11 @@ name: probe
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    # 15-minute cadence in theory. GitHub Actions scheduled runs on public
+    # free-tier repos are routinely delayed or dropped under load, so expect
+    # slippage. The page's stale-banner threshold is set high enough to not
+    # cry wolf for normal GitHub flakiness.
+    - cron: '*/15 * * * *'
   push:
     branches: [main]
   workflow_dispatch:
