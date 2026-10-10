@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Probe each target in targets.toml, write status.json, post Discord
-notifications on state transitions. Runs inside .github/workflows/probe.yml.
+"""Probe each target in targets.toml, write status.json, and POST state
+transitions to notify.vyoh.gg. Runs inside .github/workflows/probe.yml.
 
 Previous status comes from the live site (fetched by the workflow before this
 script runs), so state transitions survive across runs without the workflow
 having to commit anything back to the repo.
+
+If any transition fails to deliver to notify-hub, the script exits non-zero.
+GitHub Actions then emails the workflow-failure notification, which doubles as
+the box-is-down alert (the hub lives on the same box the prober watches).
 """
 
 from __future__ import annotations
@@ -23,7 +27,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent
 TARGETS = REPO / "targets.toml"
 STATUS = REPO / "status.json"
-DISCORD_URL = os.environ.get("DISCORD_WEBHOOK_URL", "")
+NOTIFY_HUB_URL = os.environ.get("NOTIFY_HUB_URL", "").rstrip("/")
+NOTIFY_HUB_SECRET = os.environ.get("NOTIFY_HUB_SECRET", "")
+SOURCE = "status"
 
 TIMEOUT = 15
 UA = "status.vyoh.gg prober (+https://github.com/sergeantjonas/status.vyoh.gg)"
@@ -42,21 +48,51 @@ def probe(host: str, path: str, expected: list[int]) -> tuple[bool, int, str | N
 	return (code in expected), code, None
 
 
-def notify(message: str) -> None:
-	if not DISCORD_URL:
-		print(f"(DISCORD_WEBHOOK_URL unset; would send: {message})")
-		return
-	body = json.dumps({"content": message}).encode()
+def notify(host: str, state: str, code: int, err: str | None, checked_at: int) -> bool:
+	"""POST a transition envelope to notify-hub. Return True on 2xx."""
+	if not NOTIFY_HUB_URL or not NOTIFY_HUB_SECRET:
+		print(f"notify-hub not configured; could not deliver {host} {state}", file=sys.stderr)
+		return False
+
+	if state == "down":
+		detail = f"HTTP {code}" if code else (err or "no response")
+		envelope = {
+			"source": SOURCE,
+			"key": f"{host}:down:{checked_at}",
+			"title": f"{host} is down",
+			"body": detail,
+			"url": "https://status.vyoh.gg/",
+		}
+	else:
+		envelope = {
+			"source": SOURCE,
+			"key": f"{host}:up:{checked_at}",
+			"title": f"{host} recovered",
+			"body": f"HTTP {code}",
+			"url": "https://status.vyoh.gg/",
+		}
+
 	req = urllib.request.Request(
-		DISCORD_URL,
-		data=body,
+		NOTIFY_HUB_URL,
+		data=json.dumps(envelope).encode(),
 		method="POST",
-		headers={"Content-Type": "application/json"},
+		headers={
+			"Content-Type": "application/json",
+			"Authorization": f"Bearer {NOTIFY_HUB_SECRET}",
+		},
 	)
 	try:
-		urllib.request.urlopen(req, timeout=TIMEOUT)
+		with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+			if 200 <= resp.status < 300:
+				return True
+			print(f"notify-hub returned {resp.status} for {host} {state}", file=sys.stderr)
+			return False
+	except urllib.error.HTTPError as e:
+		print(f"notify-hub returned HTTP {e.code} for {host} {state}", file=sys.stderr)
+		return False
 	except Exception as e:
-		print(f"Discord notify failed: {e}", file=sys.stderr)
+		print(f"notify-hub POST failed for {host} {state}: {e}", file=sys.stderr)
+		return False
 
 
 def load_previous() -> dict[str, dict]:
@@ -107,12 +143,13 @@ def main() -> None:
 		"targets": results,
 	}, indent=2) + "\n")
 
+	all_delivered = True
 	for host, state, code, err in transitions:
-		if state == "down":
-			detail = f"HTTP {code}" if code else (err or "no response")
-			notify(f":red_circle: **{host}** is down ({detail}).")
-		else:
-			notify(f":green_circle: **{host}** recovered.")
+		if not notify(host, state, code, err, now):
+			all_delivered = False
+
+	if not all_delivered:
+		sys.exit(1)
 
 
 if __name__ == "__main__":

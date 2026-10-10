@@ -36,19 +36,28 @@ jobs:
 
       - name: Probe
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          NOTIFY_HUB_URL: ${{ secrets.NOTIFY_HUB_URL }}
+          NOTIFY_HUB_SECRET: ${{ secrets.NOTIFY_HUB_SECRET }}
         run: python probe.py
 
+      # Deploy even if the Probe step failed delivery to notify-hub, so the
+      # page always reflects the latest probe result. The job's overall status
+      # stays "failed" when probe.py exits 1, which triggers the workflow-
+      # failure email that doubles as the box-down alert.
       - name: Assemble site
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p _site
           cp index.html status.json CNAME _site/
 
       - uses: actions/configure-pages@v5
+        if: ${{ !cancelled() }}
 
       - uses: actions/upload-pages-artifact@v3
+        if: ${{ !cancelled() }}
         with:
           path: _site
 
       - id: deploy
+        if: ${{ !cancelled() }}
         uses: actions/deploy-pages@v4

@@ -1,6 +1,6 @@
 # Status page
 
-**Status:** Active — off-box prober landed 2026-10-09; Pages/DNS/webhook setup next.
+**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Pages/DNS setup next, awaiting notify-hub to go live.
 
 One page that says whether each public site on the shared VPS answers. Watches every tenant and belongs to none of them.
 
@@ -10,12 +10,14 @@ Cross-project reasoning (why hosting off-box, why alerting off-box) lives in [`~
 
 Everything runs on GitHub-owned infrastructure. No tenant on the netcup box, no self-hosted monitoring box, no SaaS account.
 
-- **Prober:** `.github/workflows/probe.yml` — scheduled Actions workflow, every 5 min (plus `workflow_dispatch` and `push`). Runs [`probe.py`](../../probe.py) against the targets in [`targets.toml`](../../targets.toml), writes `status.json`, posts to Discord on state transitions, deploys the whole thing to Pages.
+- **Prober:** `.github/workflows/probe.yml` — scheduled Actions workflow, every 5 min (plus `workflow_dispatch` and `push`). Runs [`probe.py`](../../probe.py) against the targets in [`targets.toml`](../../targets.toml), writes `status.json`, POSTs state transitions to notify.vyoh.gg, deploys the whole thing to Pages. The Pages deploy steps run with `if: !cancelled()` so the page keeps updating even when the probe step failed delivery.
 - **Page:** [`index.html`](../../index.html) in the repo root. Fetches `status.json`, renders group → host rows with up/down pills. Vanilla JS, no build step.
-- **Alerts:** Discord webhook URL stored as repo secret `DISCORD_WEBHOOK_URL`, posted directly from the Action.
+- **Alerting (two layers):** routine transitions POST to notify.vyoh.gg per the hub's contract (`source`/`key`/`title`/`body`/`url`, bearer auth). Credentials for the hub come from repo secrets `NOTIFY_HUB_URL` + `NOTIFY_HUB_SECRET` (scoped per-source — a leak lets an attacker post status-page alerts, nothing more). When the hub is unreachable — overwhelmingly because the netcup box it runs on is down — the POST fails, `probe.py` exits non-zero, the workflow goes red, and GitHub emails the workflow-failure. That email **is** the box-down alert. No Discord webhook URL ever lives in this repo.
 - **State store:** `status.json` on Pages itself. The workflow fetches the previous `status.json` from `https://status.vyoh.gg/status.json` at the start of each run, so transitions survive across runs without committing anything back to git.
 
 Decided against the earlier on-box-prober + healthchecks.io shape (2026-10-07..08 history) on simplicity grounds: moving the prober off-box deletes the need for silence-detection entirely, which was healthchecks.io's whole job here. Backups still use healthchecks.io; the status page doesn't.
+
+Decided 2026-10-10 to route alerts via notify.vyoh.gg rather than directly to a Discord webhook. The webhook URL stays in notify-hub where it belongs (per the hub's own contract: one credential, one holder). The box-down case notify-hub cannot carry is handled by workflow-failure email instead, which needs no secret.
 
 ## Targets
 
@@ -37,7 +39,7 @@ Two states only:
 - **up** — probe returned an expected status code.
 - **down** — probe failed or returned an unexpected code. The row shows the code or error.
 
-Transitions trigger a Discord message with host + reason. Already-down hosts don't re-notify every tick; only transitions do.
+Transitions POST one envelope each to notify.vyoh.gg. Keys include the probe cycle's timestamp (`{host}:{state}:{checked_at}`), so a down→up→down→up sequence delivers four distinct alerts rather than being deduped. Already-down hosts don't re-notify every tick; only transitions do.
 
 The page detects the third case itself: if `status.json`'s `generated_at` is older than 20 minutes, a yellow banner says "monitoring looks late." No alerts fire for that — Actions scheduled runs are flaky under load, and we don't want to page on prober flakiness.
 
@@ -52,9 +54,11 @@ The page detects the third case itself: if `status.json`'s `generated_at` is old
 1. **GitHub Pages:** repo settings → Pages → Source: "GitHub Actions". First `workflow_dispatch` run of `probe.yml` publishes the site.
 2. **DNS:** CNAME `status` → `sergeantjonas.github.io`. Verify with `dig +short status.vyoh.gg`.
 3. **TLS:** GitHub auto-provisions once DNS resolves. Can take minutes.
-4. **Discord webhook:** make a channel on your server, add a webhook integration, copy the URL. Repo settings → Secrets and variables → Actions → New secret `DISCORD_WEBHOOK_URL`.
-5. **Drill:** `gh workflow run probe` from the laptop. Expect no notifications (first run has no previous state). Edit `targets.toml` to add a bogus host like `broken.vyoh.gg`, push, confirm the Discord message fires on the next scheduled run.
-6. **Add Bytesized hostnames** to `targets.toml` as their nginx vhosts land on netcup.
+4. **GitHub failure email:** github.com → Settings → Notifications → confirm "Send notifications for failed workflows only" (or equivalent) is on. This is the box-down alert path; without it, the fallback is silent.
+5. **Wait for notify-hub to go live.** Until then: scheduled probes run, `status.json` deploys, state transitions fail delivery and send workflow-failure emails. First real run shows no transitions and succeeds, so the ongoing failure only kicks in when something actually changes state. Acceptable noise during the gap.
+6. **When notify.vyoh.gg is live:** request a sender secret for `source = "status"`. Repo settings → Secrets and variables → Actions → add `NOTIFY_HUB_URL` (e.g. `https://notify.vyoh.gg/alerts`) and `NOTIFY_HUB_SECRET`.
+7. **Drill:** `gh workflow run probe` from the laptop. First run after secrets land → no transitions → exit 0. Then edit `targets.toml` to add a bogus host like `broken.vyoh.gg`, push, confirm the Discord message arrives via the hub on the next scheduled run.
+8. **Add Bytesized hostnames** to `targets.toml` as their nginx vhosts land on netcup.
 
 ## Open
 
