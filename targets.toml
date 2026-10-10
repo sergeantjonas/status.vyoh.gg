@@ -25,15 +25,51 @@ host = "api.engram.vyoh.gg"
 path = "/ready"
 group = "critical"
 
-# Reverse-proxied self-hosted containers go below. Add a block per hostname
-# when you add a new vhost on the netcup box. Examples:
-#
-# [[target]]
-# host = "sonarr.vyoh.gg"
-# path = "/ping"
-# group = "bytesized"
-#
-# [[target]]
-# host = "plex.vyoh.gg"
-# path = "/identity"
-# group = "bytesized"
+[[target]]
+host = "www.vyoh.gg"
+group = "critical"
+
+# Bytesized reverse-proxied stack. The auth gateway in front of each service
+# answers 302 (redirect to login), so the default expected codes cover them —
+# no per-service health path is needed. The probe tests the netcup → bytesized
+# reverse-proxy path end-to-end.
+
+[[target]]
+host = "plex.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "sonarr.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "radarr.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "bazarr.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "hydra.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "nzb.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "deluge.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "tautulli.vyoh.gg"
+group = "bytesized"
+
+[[target]]
+host = "files.vyoh.gg"
+group = "bytesized"
+
+# notify.vyoh.gg is not here yet — the nginx vhost exists but the hub itself
+# answers 404 for now (nothing bound upstream). Add it once the hub is live
+# and the `/` route returns 200.
