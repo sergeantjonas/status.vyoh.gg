@@ -9,6 +9,11 @@ having to commit anything back to the repo.
 If any transition fails to deliver to notify-hub, the script exits non-zero.
 GitHub Actions then emails the workflow-failure notification, which doubles as
 the box-is-down alert (the hub lives on the same box the prober watches).
+
+Hub contract — POST {NOTIFY_HUB_URL} with Authorization: Bearer <secret>:
+	{ "key": "...", "title": "...", "body": "...", "url": "..." }
+No `source` field; the hub infers it from the secret. Response is 202 with
+{ "duplicate": true/false } on success. See commonplace's notify-hub.md.
 """
 
 from __future__ import annotations
@@ -33,7 +38,6 @@ TARGETS = REPO / "targets.toml"
 STATUS = REPO / "status.json"
 NOTIFY_HUB_URL = os.environ.get("NOTIFY_HUB_URL", "").rstrip("/")
 NOTIFY_HUB_SECRET = os.environ.get("NOTIFY_HUB_SECRET", "")
-SOURCE = "status"
 
 TIMEOUT = 15
 UA = "status.vyoh.gg prober (+https://github.com/sergeantjonas/status.vyoh.gg)"
@@ -53,7 +57,9 @@ def probe(host: str, path: str, expected: list[int]) -> tuple[bool, int, str | N
 
 
 def notify(host: str, state: str, code: int, err: str | None, checked_at: int) -> bool:
-	"""POST a transition envelope to notify-hub. Return True on 2xx."""
+	"""POST a transition envelope to notify-hub. Return True on 2xx.
+	The envelope matches the hub's /messages contract: no `source` field
+	(the Bearer secret identifies the source), key has no whitespace."""
 	if not NOTIFY_HUB_URL or not NOTIFY_HUB_SECRET:
 		print(f"notify-hub not configured; could not deliver {host} {state}", file=sys.stderr)
 		return False
@@ -61,7 +67,6 @@ def notify(host: str, state: str, code: int, err: str | None, checked_at: int) -
 	if state == "down":
 		detail = f"HTTP {code}" if code else (err or "no response")
 		envelope = {
-			"source": SOURCE,
 			"key": f"{host}:down:{checked_at}",
 			"title": f"{host} is down",
 			"body": detail,
@@ -69,7 +74,6 @@ def notify(host: str, state: str, code: int, err: str | None, checked_at: int) -
 		}
 	else:
 		envelope = {
-			"source": SOURCE,
 			"key": f"{host}:up:{checked_at}",
 			"title": f"{host} recovered",
 			"body": f"HTTP {code}",
@@ -92,6 +96,9 @@ def notify(host: str, state: str, code: int, err: str | None, checked_at: int) -
 			print(f"notify-hub returned {resp.status} for {host} {state}", file=sys.stderr)
 			return False
 	except urllib.error.HTTPError as e:
+		# 401 (bad secret) and 5xx (hub trouble) are retryable; 400 means the
+		# envelope is wrong on our side and retrying never helps. Either way,
+		# fail the workflow so the owner sees it in the failure email.
 		print(f"notify-hub returned HTTP {e.code} for {host} {state}", file=sys.stderr)
 		return False
 	except Exception as e:
