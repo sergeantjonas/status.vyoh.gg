@@ -31,9 +31,10 @@ Edit `targets.toml` to add or remove. Each `[[target]]` block carries:
 | `group` | `"other"` | Display grouping on the page. `critical` renders first; other groups follow alphabetically. |
 
 Current set:
-- **critical** — `vyoh.gg`, `api.vyoh.gg` (`/health`), `engram.vyoh.gg`, `api.engram.vyoh.gg` (`/ready`), `www.vyoh.gg`.
+- **critical** — `vyoh.gg`, `api.vyoh.gg` (`/health`), `engram.vyoh.gg`, `api.engram.vyoh.gg` (`/ready`), `www.vyoh.gg`, `notify.vyoh.gg` (`/health`).
 - **bytesized** — `plex`, `sonarr`, `radarr`, `bazarr`, `hydra`, `nzb`, `deluge`, `tautulli`, `files`. All reverse-proxied through netcup's `byte-proxy.conf` vhost; the auth gateway in front of each returns 302 which the default `expected` codes cover.
-- **not yet added:** `notify.vyoh.gg` — the nginx vhost exists but the hub itself returns 404 (nothing bound upstream). Add once the hub is live.
+
+Monitoring `notify.vyoh.gg` is the only way to catch "hub is down but box is up" — a case the workflow-failure-email fallback does not cover (probes to everything else succeed, nothing exits 1, no email).
 
 Discovery is manual: `ssh vyoh 'grep -h server_name /etc/nginx/sites-enabled/*.conf | awk "{for(i=2;i<=NF;i++)print \$i}" | tr -d ";" | grep -v "^_$" | sort -u'` lists every hostname nginx answers for. Diff against `targets.toml` to see what's missing.
 
