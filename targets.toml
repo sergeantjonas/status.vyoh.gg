@@ -50,12 +50,18 @@ group = "bytesized"
 host = "bazarr.vyoh.gg"
 group = "bytesized"
 
+# hydra and nzb sit behind nginx IP-restricted basic auth, so a probe from a
+# GitHub runner's IP returns 401 instead of the 302 you'd see from a whitelisted
+# IP. The 401 proves the service is reachable and the auth gate is up — a truly
+# dead upstream would 502 or time out — so accept it as valid.
 [[target]]
 host = "hydra.vyoh.gg"
+expected = [200, 301, 302, 401]
 group = "bytesized"
 
 [[target]]
 host = "nzb.vyoh.gg"
+expected = [200, 301, 302, 401]
 group = "bytesized"
 
 [[target]]
