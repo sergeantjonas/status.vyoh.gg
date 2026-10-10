@@ -49,6 +49,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html status.json CNAME _site/
+          cp -r fonts _site/
 
       - uses: actions/configure-pages@v5
         if: ${{ !cancelled() }}

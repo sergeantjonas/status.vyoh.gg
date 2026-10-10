@@ -6,212 +6,288 @@
 	<meta name="color-scheme" content="light dark">
 	<title>status.vyoh.gg</title>
 	<link rel="icon" id="favicon" href="data:,">
+	<link rel="preload" href="./fonts/inter.woff2" as="font" type="font/woff2" crossorigin>
 	<style>
+		@font-face {
+			font-family: 'Inter';
+			src: url('./fonts/inter.woff2') format('woff2-variations');
+			font-weight: 100 900;
+			font-style: normal;
+			font-display: swap;
+		}
+
 		:root {
 			color-scheme: light dark;
-			--fg: light-dark(#0f172a, #f1f5f9);
-			--muted: light-dark(#64748b, #94a3b8);
-			--bg: light-dark(#f8fafc, #0b1120);
-			--card: light-dark(#ffffff, #0f172a);
-			--rule: light-dark(#e2e8f0, #1e293b);
-			--up-bg: light-dark(#ecfdf5, #052e1a);
-			--up-fg: light-dark(#047857, #6ee7b7);
-			--up-dot: #10b981;
-			--down-bg: light-dark(#fef2f2, #3b0a0a);
-			--down-fg: light-dark(#b91c1c, #fca5a5);
-			--down-dot: #ef4444;
-			--warn-bg: light-dark(#fffbeb, #3a2a06);
-			--warn-fg: light-dark(#92400e, #fcd34d);
-			--warn-dot: #f59e0b;
-			--idle-bg: light-dark(#f1f5f9, #1e293b);
-			--idle-fg: var(--muted);
-			--idle-dot: #94a3b8;
+			--fg:        light-dark(#0f172a, #e2e8f0);
+			--fg-soft:   light-dark(#334155, #cbd5e1);
+			--muted:     light-dark(#64748b, #94a3b8);
+			--muted-2:   light-dark(#94a3b8, #64748b);
+			--bg:        light-dark(#fafafa, #0a0a0f);
+			--card:      light-dark(#ffffff, #11131a);
+			--card-soft: light-dark(#f8fafc, #0f1218);
+			--rule:      light-dark(#e2e8f0, #1f2330);
+			--rule-soft: light-dark(#f1f5f9, #171a24);
+
+			--accent:        light-dark(#4f46e5, #818cf8);
+			--accent-soft:   light-dark(#eef2ff, #1e1b4b);
+			--accent-strong: light-dark(#3730a3, #a5b4fc);
+
+			--up-dot:    #10b981;
+			--up-bg:     light-dark(#ecfdf5, #052e1a);
+			--up-fg:     light-dark(#047857, #6ee7b7);
+			--down-dot:  #ef4444;
+			--down-bg:   light-dark(#fef2f2, #450a0a);
+			--down-fg:   light-dark(#b91c1c, #fca5a5);
+			--warn-dot:  #f59e0b;
+			--warn-bg:   light-dark(#fffbeb, #3a2a06);
+			--warn-fg:   light-dark(#92400e, #fcd34d);
+			--idle-dot:  light-dark(#cbd5e1, #334155);
 		}
+
 		* { box-sizing: border-box; }
 		html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
 		body {
-			font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, sans-serif;
-			max-width: 48rem;
+			font: 400 15px/1.5 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+			font-feature-settings: 'cv11', 'ss01', 'ss03';
+			max-width: 54rem;
 			margin: 0 auto;
-			padding: 3rem 1.25rem 4rem;
+			padding: 3rem 1.5rem 4rem;
+			-webkit-font-smoothing: antialiased;
+			text-rendering: optimizeLegibility;
 		}
+		.mono { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, monospace; }
 
-		header { margin-bottom: 2rem; }
-		.wordmark {
-			font: 600 1.125rem/1.2 ui-sans-serif, system-ui, sans-serif;
-			letter-spacing: -0.01em;
-			margin: 0 0 0.25rem;
-		}
-		.wordmark .dot {
-			color: var(--muted);
-			font-weight: 400;
-		}
-
-		.banner {
+		/* --- Header -------------------------------------------------------- */
+		header {
 			display: flex;
-			align-items: center;
-			gap: 0.9rem;
-			padding: 1rem 1.25rem;
-			border-radius: 10px;
-			margin-bottom: 2rem;
-			background: var(--idle-bg);
-			color: var(--idle-fg);
-			border: 1px solid transparent;
+			justify-content: space-between;
+			align-items: baseline;
+			margin-bottom: 3rem;
+			color: var(--muted);
+			font-size: 0.82rem;
 		}
-		.banner[data-state="up"] { background: var(--up-bg); color: var(--up-fg); }
-		.banner[data-state="down"] { background: var(--down-bg); color: var(--down-fg); }
-		.banner[data-state="degraded"] { background: var(--warn-bg); color: var(--warn-fg); }
-		.banner-icon {
-			width: 1.5rem;
-			height: 1.5rem;
-			flex-shrink: 0;
-			display: grid;
-			place-items: center;
+		.wordmark {
+			font: 600 0.95rem/1 'Inter', sans-serif;
+			letter-spacing: -0.015em;
+			color: var(--fg);
+			margin: 0;
 		}
-		.banner-text { flex: 1; }
-		.banner-text strong { display: block; font-weight: 600; font-size: 1rem; letter-spacing: -0.005em; }
-		.banner-text span { display: block; font-size: 0.825rem; opacity: 0.75; margin-top: 2px; }
+		.wordmark .accent { color: var(--accent); }
+		.wordmark .punct { color: var(--muted-2); font-weight: 400; }
 
-		.stale {
+		/* --- Hero ---------------------------------------------------------- */
+		.hero {
+			margin-bottom: 3.5rem;
+			animation: fade-in 0.4s ease-out;
+		}
+		.hero-headline {
+			font: 600 2.75rem/1.08 'Inter', sans-serif;
+			letter-spacing: -0.03em;
+			margin: 0 0 1rem;
+			color: var(--fg);
+		}
+		.hero-headline .mark {
+			display: inline-block;
+			width: 0.55rem;
+			height: 0.55rem;
+			border-radius: 50%;
+			background: var(--idle-dot);
+			margin-right: 0.75rem;
+			vertical-align: 0.3em;
+			transition: background 0.3s;
+		}
+		.hero[data-state="up"]       .mark { background: var(--up-dot);   box-shadow: 0 0 0 4px var(--up-bg); }
+		.hero[data-state="degraded"] .mark { background: var(--warn-dot); box-shadow: 0 0 0 4px var(--warn-bg); }
+		.hero[data-state="down"]     .mark { background: var(--down-dot); box-shadow: 0 0 0 4px var(--down-bg); }
+		.hero-meta {
+			font-size: 0.88rem;
+			color: var(--muted);
+			margin: 0;
+		}
+		.hero-meta .chip {
+			display: inline-block;
+			padding: 0.15rem 0.55rem;
+			border-radius: 999px;
+			background: var(--accent-soft);
+			color: var(--accent-strong);
+			font-weight: 500;
+			margin-right: 0.25rem;
+		}
+		.hero-meta.stale .chip {
 			background: var(--warn-bg);
 			color: var(--warn-fg);
-			padding: 0.75rem 1rem;
-			border-radius: 8px;
-			font-size: 0.85rem;
-			margin-bottom: 1.5rem;
 		}
-		.stale[hidden] { display: none; }
 
-		.group { margin-bottom: 1.75rem; }
-		.group h2 {
-			font: 600 0.72rem/1 ui-sans-serif, system-ui, sans-serif;
-			text-transform: uppercase;
-			letter-spacing: 0.09em;
-			color: var(--muted);
-			margin: 0 0 0.6rem;
-			padding-left: 0.25rem;
+		/* --- Groups -------------------------------------------------------- */
+		.group { margin-bottom: 2.25rem; }
+		.group-head {
+			display: flex;
+			justify-content: space-between;
+			align-items: baseline;
+			margin: 0 0 0.65rem;
+			padding: 0 0.1rem;
 		}
+		.group-head h2 {
+			font: 600 0.68rem/1 'Inter', sans-serif;
+			text-transform: uppercase;
+			letter-spacing: 0.14em;
+			color: var(--muted);
+			margin: 0;
+		}
+		.group-head .count {
+			font: 500 0.72rem/1 ui-monospace, monospace;
+			color: var(--muted-2);
+		}
+
 		.group-list {
 			list-style: none;
 			padding: 0;
 			margin: 0;
 			background: var(--card);
 			border: 1px solid var(--rule);
-			border-radius: 10px;
+			border-radius: 12px;
 			overflow: hidden;
 		}
+
+		/* --- Row ----------------------------------------------------------- */
 		.row {
-			display: flex;
-			align-items: flex-start;
-			gap: 0.9rem;
-			padding: 0.85rem 1rem;
-			border-bottom: 1px solid var(--rule);
+			display: grid;
+			grid-template-columns: auto 1fr auto;
+			gap: 0.9rem 1rem;
+			padding: 1rem 1.1rem;
+			border-bottom: 1px solid var(--rule-soft);
+			transition: background 0.2s;
 		}
 		.row:last-child { border-bottom: 0; }
+		.row:hover { background: var(--card-soft); }
 		.row .dot {
 			width: 0.55rem;
 			height: 0.55rem;
 			border-radius: 50%;
-			flex-shrink: 0;
 			background: var(--idle-dot);
-			margin-top: 0.4rem;
+			margin-top: 0.5rem;
+			transition: background 0.3s;
+			align-self: start;
 		}
-		.row[data-state="up"] .dot { background: var(--up-dot); }
-		.row[data-state="down"] .dot { background: var(--down-dot); }
-		.row .main {
-			flex: 1;
-			min-width: 0;
+		.row[data-state="up"]   .dot { background: var(--up-dot); }
+		.row[data-state="down"] .dot { background: var(--down-dot); box-shadow: 0 0 0 3px var(--down-bg); }
+		.row[data-pulse]        .dot { animation: pulse 1.2s ease-out 2; }
+
+		.row-headline {
 			display: flex;
-			flex-direction: column;
-			gap: 0.5rem;
+			align-items: baseline;
+			gap: 0.6rem;
+			min-width: 0;
 		}
 		.row .host {
-			font: 500 0.9rem/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+			flex: 1;
+			font: 500 0.9rem/1.3 ui-monospace, 'SF Mono', monospace;
 			color: var(--fg);
 			word-break: break-all;
 		}
+		.row .host-path { color: var(--muted); }
+		.row .pill {
+			display: inline-flex;
+			align-items: center;
+			padding: 0.2rem 0.55rem;
+			border-radius: 999px;
+			font: 600 0.68rem/1 'Inter', sans-serif;
+			text-transform: uppercase;
+			letter-spacing: 0.08em;
+			background: var(--card-soft);
+			color: var(--muted);
+		}
+		.row[data-state="up"]   .pill { background: var(--up-bg);   color: var(--up-fg); }
+		.row[data-state="down"] .pill { background: var(--down-bg); color: var(--down-fg); }
+
+		.row-main { grid-column: 2 / span 2; display: flex; flex-direction: column; gap: 0.55rem; min-width: 0; }
+
 		.history {
 			display: grid;
 			grid-template-columns: repeat(288, 1fr);
 			gap: 0;
-			height: 16px;
+			height: 18px;
 			width: 100%;
-			border-radius: 2px;
+			border-radius: 3px;
 			overflow: hidden;
 		}
 		.h-bar {
 			background: var(--idle-dot);
-			opacity: 0.25;
+			opacity: 0.3;
 			min-width: 0;
-			transition: opacity 0.15s;
+			transition: opacity 0.2s;
 		}
-		.h-bar[data-state="up"] { background: var(--up-dot); opacity: 0.75; }
+		.h-bar[data-state="up"]   { background: var(--up-dot);   opacity: 0.72; }
 		.h-bar[data-state="down"] { background: var(--down-dot); opacity: 1; }
 		.h-bar:last-child[data-state="up"] { opacity: 1; }
-		.h-bar:hover { opacity: 1; outline: 1px solid var(--fg); }
-		.history-caption {
+		.h-bar:hover { opacity: 1; outline: 1px solid var(--fg); outline-offset: -1px; }
+
+		.row-meta {
 			display: flex;
 			justify-content: space-between;
-			font-size: 0.68rem;
+			gap: 1rem;
+			font: 400 0.76rem/1 'Inter', sans-serif;
 			color: var(--muted);
-			margin-top: 0.3rem;
-			letter-spacing: 0.02em;
+			font-variant-numeric: tabular-nums;
 		}
-		.row .pill {
-			margin-top: 0.1rem;
-			flex-shrink: 0;
-			display: inline-flex;
-			align-items: center;
-			gap: 0.4rem;
-			padding: 0.2rem 0.55rem;
-			border-radius: 999px;
-			font: 600 0.7rem/1 ui-sans-serif, system-ui, sans-serif;
-			text-transform: uppercase;
-			letter-spacing: 0.06em;
-			flex-shrink: 0;
-		}
-		.row[data-state="up"] .pill { background: var(--up-bg); color: var(--up-fg); }
-		.row[data-state="down"] .pill { background: var(--down-bg); color: var(--down-fg); }
-		.row .code { font-variant-numeric: tabular-nums; opacity: 0.7; }
+		.row-meta .streak { color: var(--fg-soft); font-weight: 500; }
 
+		/* --- Skeleton ------------------------------------------------------ */
+		.skeleton .row-headline > .host,
+		.skeleton .row-headline > .pill { opacity: 0.3; background: var(--rule); color: transparent; border-radius: 3px; }
+		.skeleton .history { opacity: 0.4; }
+		.skeleton .row-meta { opacity: 0.3; }
+
+		/* --- Footer -------------------------------------------------------- */
 		footer {
-			margin-top: 3rem;
-			padding-top: 1rem;
+			margin-top: 3.5rem;
+			padding-top: 1.25rem;
 			border-top: 1px solid var(--rule);
 			color: var(--muted);
-			font-size: 0.8rem;
+			font-size: 0.78rem;
 			display: flex;
 			justify-content: space-between;
 			gap: 1rem;
 			flex-wrap: wrap;
 		}
-		footer a { color: inherit; text-decoration: none; border-bottom: 1px solid currentColor; }
-		footer a:hover { color: var(--fg); }
+		footer a {
+			color: var(--muted);
+			text-decoration: none;
+			border-bottom: 1px solid transparent;
+			transition: color 0.15s, border-color 0.15s;
+		}
+		footer a:hover { color: var(--accent); border-bottom-color: var(--accent); }
 
-		.empty { color: var(--muted); font-style: italic; padding: 1rem; }
+		/* --- Motion -------------------------------------------------------- */
+		@keyframes fade-in {
+			from { opacity: 0; transform: translateY(4px); }
+			to   { opacity: 1; transform: none; }
+		}
+		@keyframes pulse {
+			0%   { box-shadow: 0 0 0 0 var(--down-dot); }
+			50%  { box-shadow: 0 0 0 8px rgba(239, 68, 68, 0.3); }
+			100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+		}
+		@media (prefers-reduced-motion: reduce) {
+			*, *::before, *::after { animation-duration: 0.001s !important; transition-duration: 0.001s !important; }
+		}
 	</style>
 </head>
 <body>
 	<header>
-		<h1 class="wordmark">status<span class="dot">.</span>vyoh<span class="dot">.</span>gg</h1>
+		<h1 class="wordmark">status<span class="punct">.</span>vyoh<span class="punct">.</span><span class="accent">gg</span></h1>
+		<span id="header-meta"></span>
 	</header>
 
-	<div class="banner" id="banner" data-state="idle">
-		<div class="banner-icon" id="banner-icon"></div>
-		<div class="banner-text">
-			<strong id="banner-headline">Loading…</strong>
-			<span id="banner-sub"></span>
-		</div>
-	</div>
+	<section class="hero" id="hero" data-state="idle">
+		<h2 class="hero-headline" id="hero-headline"><span class="mark"></span>Loading status…</h2>
+		<p class="hero-meta" id="hero-meta">Fetching the latest check.</p>
+	</section>
 
-	<div class="stale" id="stale-banner" hidden>
-		Monitoring looks late — last check was <span id="stale-age"></span>. The prober itself may be delayed.
-	</div>
-
-	<main id="groups"></main>
+	<main id="groups" class="skeleton"></main>
 
 	<footer>
-		<span>Probed from GitHub Actions every ~5 min.</span>
+		<span>Probed from GitHub every 5 min · built in a weekend.</span>
 		<a href="https://github.com/sergeantjonas/status.vyoh.gg">github.com/sergeantjonas/status.vyoh.gg</a>
 	</footer>
 
@@ -224,15 +300,16 @@
 			bytesized: 'Self-hosted',
 			other: 'Other',
 		};
-
-		const ICONS = {
-			up: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7"/></svg>`,
-			degraded: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>`,
-			down: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M15 9l-6 6"/><path d="M9 9l6 6"/></svg>`,
-			idle: `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l2 2"/></svg>`,
-		};
-
 		const FAVICON_COLOR = { up: '#10b981', degraded: '#f59e0b', down: '#ef4444', idle: '#94a3b8' };
+
+		const prevStateByHost = new Map();
+
+		// --- Formatters -----------------------------------------------------
+
+		const fullFmt = new Intl.DateTimeFormat(undefined, {
+			month: 'short', day: 'numeric',
+			hour: '2-digit', minute: '2-digit',
+		});
 
 		function fmtAge(seconds) {
 			if (seconds < 60) return 'just now';
@@ -243,11 +320,27 @@
 			return `${Math.round(h / 24)} d ago`;
 		}
 
+		function fmtDuration(seconds) {
+			if (seconds < 60) return `${Math.round(seconds)}s`;
+			const m = Math.round(seconds / 60);
+			if (m < 60) return `${m}m`;
+			const h = m / 60;
+			if (h < 24) return h % 1 < 0.1 ? `${Math.round(h)}h` : `${h.toFixed(1)}h`;
+			return `${Math.round(h / 24)}d`;
+		}
+
+		// --- Favicon --------------------------------------------------------
+
 		function setFavicon(state) {
 			const color = FAVICON_COLOR[state] || FAVICON_COLOR.idle;
-			const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="${color}"/></svg>`;
+			const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+				<rect width="32" height="32" rx="7" fill="${color}" fill-opacity="0.18"/>
+				<circle cx="16" cy="16" r="7" fill="${color}"/>
+			</svg>`.replace(/\s+/g, ' ');
 			document.getElementById('favicon').href = 'data:image/svg+xml,' + encodeURIComponent(svg);
 		}
+
+		// --- Overall state --------------------------------------------------
 
 		function overallState(targets) {
 			if (!targets || targets.length === 0) return 'idle';
@@ -257,84 +350,111 @@
 			return 'degraded';
 		}
 
-		function headlineFor(state, targets) {
-			const down = targets.filter(t => t.state === 'down').length;
+		function heroText(state, targets) {
+			const down = targets.filter(t => t.state === 'down');
 			const total = targets.length;
-			if (state === 'up') return 'All systems operational';
-			if (state === 'down') return `All ${total} services down`;
-			if (state === 'degraded') return `${down} of ${total} services down`;
-			return 'No data yet';
+			if (state === 'up') return "Everything's working.";
+			if (state === 'idle') return 'No data yet.';
+			if (down.length === 1) return `${down[0].host} is down.`;
+			if (down.length === total) return `All ${total} services are down.`;
+			return `${down.length} of ${total} services are down.`;
 		}
 
+		// --- Per-row analytics ---------------------------------------------
+
+		function uptimePercent(history) {
+			if (!history || history.length === 0) return null;
+			const up = history.filter(([, s]) => s === 'up').length;
+			return (up / history.length) * 100;
+		}
+
+		function currentStreak(history, state) {
+			if (!history || history.length === 0) return null;
+			// Walk backwards from the most recent entry while state matches.
+			let i = history.length - 1;
+			const [latestTs] = history[i];
+			while (i > 0 && history[i - 1][1] === state) i--;
+			const startTs = history[i][0];
+			return latestTs - startTs; // seconds elapsed in the current streak
+		}
+
+		// --- History strip --------------------------------------------------
+
 		function renderHistory(history) {
-			// history is a list of [unix_ts, state] pairs, oldest first,
-			// up to HISTORY_ENTRIES entries. Older entries scroll off the left.
-			// Pad the left with empty "no data" bars so the strip stays
-			// fixed-width even when a target is new.
 			const strip = document.createElement('div');
 			strip.className = 'history';
-
-			const timeFmt = new Intl.DateTimeFormat(undefined, {
-				hour: '2-digit', minute: '2-digit',
-			});
-			const fullFmt = new Intl.DateTimeFormat(undefined, {
-				month: 'short', day: 'numeric',
-				hour: '2-digit', minute: '2-digit',
-			});
-
 			const padCount = HISTORY_ENTRIES - history.length;
-			const bars = [];
+			const frag = document.createDocumentFragment();
 			for (let i = 0; i < padCount; i++) {
 				const bar = document.createElement('span');
 				bar.className = 'h-bar';
 				bar.title = 'no data yet';
-				bars.push(bar);
+				frag.appendChild(bar);
 			}
 			for (const [ts, state] of history) {
 				const bar = document.createElement('span');
 				bar.className = 'h-bar';
 				bar.dataset.state = state;
 				bar.title = `${fullFmt.format(new Date(ts * 1000))} · ${state}`;
-				bars.push(bar);
+				frag.appendChild(bar);
 			}
-			strip.append(...bars);
+			strip.appendChild(frag);
 			return strip;
 		}
+
+		// --- Main render ----------------------------------------------------
 
 		function render(data) {
 			const now = Math.floor(Date.now() / 1000);
 			const targets = data.targets || [];
 			const state = overallState(targets);
 			const age = data.generated_at ? now - data.generated_at : null;
+			const stale = age !== null && age > STALE_MINUTES * 60;
 
-			const banner = document.getElementById('banner');
-			banner.dataset.state = state;
-			document.getElementById('banner-icon').innerHTML = ICONS[state];
-			document.getElementById('banner-headline').textContent = headlineFor(state, targets);
-			document.getElementById('banner-sub').textContent =
-				age !== null ? `Checked ${fmtAge(age)}` : 'Waiting for first probe.';
+			// Hero
+			const hero = document.getElementById('hero');
+			hero.dataset.state = state;
+			const headline = document.getElementById('hero-headline');
+			headline.innerHTML = '';
+			const mark = document.createElement('span');
+			mark.className = 'mark';
+			headline.append(mark, document.createTextNode(heroText(state, targets)));
+
+			const metaEl = document.getElementById('hero-meta');
+			metaEl.className = 'hero-meta' + (stale ? ' stale' : '');
+			metaEl.innerHTML = '';
+			const chip = document.createElement('span');
+			chip.className = 'chip';
+			chip.textContent = age !== null ? `Checked ${fmtAge(age)}` : 'Waiting for first probe';
+			metaEl.append(chip, document.createTextNode(` · ${targets.length} services tracked`));
+			if (stale) metaEl.appendChild(document.createTextNode(' · prober may be delayed'));
+
+			// Header meta
+			document.getElementById('header-meta').textContent = state === 'idle' ? '' : fullFmt.format(new Date(now * 1000));
 
 			setFavicon(state);
+			document.title = state === 'up'
+				? 'status.vyoh.gg · all up'
+				: state === 'idle'
+				? 'status.vyoh.gg'
+				: `status.vyoh.gg · ${targets.filter(t => t.state === 'down').length} down`;
 
-			const stale = age !== null && age > STALE_MINUTES * 60;
-			const staleBanner = document.getElementById('stale-banner');
-			staleBanner.hidden = !stale;
-			if (stale) document.getElementById('stale-age').textContent = fmtAge(age);
-
-			const groups = {};
-			for (const t of targets) {
-				(groups[t.group || 'other'] ||= []).push(t);
-			}
-
+			// Groups
 			const container = document.getElementById('groups');
+			container.classList.remove('skeleton');
 			container.innerHTML = '';
 
 			if (targets.length === 0) {
 				const p = document.createElement('p');
-				p.className = 'empty';
+				p.style.cssText = 'color: var(--muted); font-style: italic; padding: 1rem 0;';
 				p.textContent = 'No targets configured yet.';
 				container.appendChild(p);
 				return;
+			}
+
+			const groups = {};
+			for (const t of targets) {
+				(groups[t.group || 'other'] ||= []).push(t);
 			}
 
 			const seen = new Set();
@@ -346,46 +466,123 @@
 			for (const name of ordered) {
 				const section = document.createElement('section');
 				section.className = 'group';
+
+				const head = document.createElement('div');
+				head.className = 'group-head';
 				const h = document.createElement('h2');
 				h.textContent = GROUP_LABEL[name] || name;
-				section.appendChild(h);
+				const count = document.createElement('span');
+				count.className = 'count';
+				const down = groups[name].filter(t => t.state === 'down').length;
+				count.textContent = down === 0 ? `${groups[name].length}/${groups[name].length} up` : `${groups[name].length - down}/${groups[name].length} up`;
+				head.append(h, count);
+				section.appendChild(head);
+
 				const ul = document.createElement('ul');
 				ul.className = 'group-list';
+
 				for (const t of groups[name]) {
-					const li = document.createElement('li');
-					li.className = 'row';
-					li.dataset.state = t.state;
-
-					const dot = document.createElement('span');
-					dot.className = 'dot';
-
-					const main = document.createElement('div');
-					main.className = 'main';
-
-					const host = document.createElement('span');
-					host.className = 'host';
-					host.textContent = t.host + (t.path && t.path !== '/' ? t.path : '');
-					main.appendChild(host);
-					main.appendChild(renderHistory(t.history || []));
-
-					const pill = document.createElement('span');
-					pill.className = 'pill';
-					if (t.state === 'down') {
-						const label = document.createTextNode('Down');
-						const code = document.createElement('span');
-						code.className = 'code';
-						code.textContent = t.code ? ` · ${t.code}` : (t.error ? ' · timeout' : '');
-						pill.append(label, code);
-					} else {
-						pill.textContent = 'Up';
-					}
-
-					li.append(dot, main, pill);
-					ul.appendChild(li);
+					ul.appendChild(renderRow(t));
 				}
 				section.appendChild(ul);
 				container.appendChild(section);
 			}
+		}
+
+		function renderRow(t) {
+			const li = document.createElement('li');
+			li.className = 'row';
+			li.dataset.state = t.state;
+
+			// Mark state transitions with a pulse that plays once.
+			const prevState = prevStateByHost.get(t.host);
+			if (prevState && prevState !== t.state) {
+				li.dataset.pulse = '1';
+			}
+			prevStateByHost.set(t.host, t.state);
+
+			const dot = document.createElement('span');
+			dot.className = 'dot';
+
+			const headline = document.createElement('div');
+			headline.className = 'row-headline';
+			const host = document.createElement('span');
+			host.className = 'host';
+			host.textContent = t.host;
+			if (t.path && t.path !== '/') {
+				const pathSpan = document.createElement('span');
+				pathSpan.className = 'host-path';
+				pathSpan.textContent = t.path;
+				host.appendChild(pathSpan);
+			}
+			const pill = document.createElement('span');
+			pill.className = 'pill';
+			pill.textContent = t.state === 'up' ? 'Up' : (t.code ? `Down · ${t.code}` : 'Down');
+			headline.append(host, pill);
+
+			const main = document.createElement('div');
+			main.className = 'row-main';
+
+			const history = Array.isArray(t.history) ? t.history : [];
+			main.appendChild(renderHistory(history));
+
+			const meta = document.createElement('div');
+			meta.className = 'row-meta';
+			const uptime = uptimePercent(history);
+			const streak = currentStreak(history, t.state);
+			const left = document.createElement('span');
+			left.className = 'streak';
+			left.textContent = streak !== null
+				? `${t.state === 'up' ? 'Up' : 'Down'} for ${fmtDuration(streak)}`
+				: '—';
+			const right = document.createElement('span');
+			right.textContent = uptime !== null
+				? `${uptime.toFixed(uptime >= 99.95 ? 0 : 2)}% uptime · last ${history.length} probes`
+				: 'no data';
+			meta.append(left, right);
+			main.append(meta);
+
+			li.append(dot, headline, main);
+			return li;
+		}
+
+		// --- Loader ---------------------------------------------------------
+
+		function renderSkeleton() {
+			// Show 6 placeholder rows while status.json loads, so the layout
+			// is immediately in place instead of jumping in after the fetch.
+			const container = document.getElementById('groups');
+			container.className = 'skeleton';
+			const section = document.createElement('section');
+			section.className = 'group';
+			const ul = document.createElement('ul');
+			ul.className = 'group-list';
+			for (let i = 0; i < 6; i++) {
+				const li = document.createElement('li');
+				li.className = 'row';
+				const dot = document.createElement('span'); dot.className = 'dot';
+				const headline = document.createElement('div');
+				headline.className = 'row-headline';
+				const host = document.createElement('span'); host.className = 'host'; host.textContent = 'host.vyoh.gg';
+				const pill = document.createElement('span'); pill.className = 'pill'; pill.textContent = '    ';
+				headline.append(host, pill);
+				const main = document.createElement('div');
+				main.className = 'row-main';
+				const strip = document.createElement('div'); strip.className = 'history';
+				for (let j = 0; j < HISTORY_ENTRIES; j++) {
+					const bar = document.createElement('span'); bar.className = 'h-bar';
+					strip.appendChild(bar);
+				}
+				const metaRow = document.createElement('div');
+				metaRow.className = 'row-meta';
+				metaRow.innerHTML = '<span>Up for —</span><span>— uptime</span>';
+				main.append(strip, metaRow);
+				li.append(dot, headline, main);
+				ul.appendChild(li);
+			}
+			section.appendChild(ul);
+			container.innerHTML = '';
+			container.appendChild(section);
 		}
 
 		async function load() {
@@ -393,15 +590,14 @@
 				const r = await fetch('./status.json', { cache: 'no-store' });
 				render(await r.json());
 			} catch (e) {
-				const banner = document.getElementById('banner');
-				banner.dataset.state = 'idle';
-				document.getElementById('banner-icon').innerHTML = ICONS.idle;
-				document.getElementById('banner-headline').textContent = 'Status unavailable';
-				document.getElementById('banner-sub').textContent = 'Could not load status.json.';
+				document.getElementById('hero').dataset.state = 'idle';
+				document.getElementById('hero-headline').textContent = 'Status unavailable.';
+				document.getElementById('hero-meta').textContent = "Couldn't load status.json.";
 				setFavicon('idle');
 			}
 		}
 
+		renderSkeleton();
 		load();
 		setInterval(load, 60_000);
 	</script>
