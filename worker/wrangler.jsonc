@@ -1,0 +1,11 @@
+{
+	"name": "status-prober-trigger",
+	"main": "index.js",
+	"compatibility_date": "2026-09-15",
+	// Cron-only: no HTTP surface to expose.
+	"workers_dev": false,
+	"preview_urls": false,
+	"triggers": {
+		"crons": ["*/15 * * * *"]
+	}
+}

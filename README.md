@@ -3,7 +3,7 @@
 One page that says whether each public site on the shared VPS answers, plus a Discord ping when one changes state.
 
 - **Live:** <https://status.vyoh.gg> (GitHub Pages).
-- **Prober:** GitHub Actions scheduled workflow, every ~15 minutes. No infrastructure on the box being watched.
+- **Prober:** GitHub Actions workflow, every ~15 minutes, started by a cron-only Cloudflare Worker ([`worker/`](worker/)) with GitHub's own schedule as backup. No infrastructure on the box being watched.
 - **Alerts:** [notify.vyoh.gg](https://github.com/sergeantjonas/notify.vyoh.gg) on state transitions. If the hub is unreachable (box down), the workflow exits non-zero and GitHub's workflow-failure email covers the gap.
 
 Pure static HTML and JS, no build step. `probe.py` walks `targets.toml`, writes `status.json`, and the Action deploys it to Pages. Editing `targets.toml` is the whole workflow for adding or removing monitored sites.

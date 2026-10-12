@@ -3,3 +3,4 @@
 !*.env.example
 .vscode/
 .idea/
+.wrangler/

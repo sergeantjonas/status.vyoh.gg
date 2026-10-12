@@ -1,6 +1,6 @@
 # Status page
 
-**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Pages/DNS setup next, awaiting notify-hub to go live.
+**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Cloudflare Worker trigger deployed 2026-10-12. Next action 4, 5 and 7 not yet confirmed done.
 
 One page that says whether each public site on the shared VPS answers. Watches every tenant and belongs to none of them.
 
@@ -8,9 +8,9 @@ Cross-project reasoning (why hosting off-box, why alerting off-box) lives in [`~
 
 ## Shape
 
-Everything runs on GitHub-owned infrastructure. No tenant on the netcup box, no self-hosted monitoring box, no SaaS account.
+Everything runs off the netcup box: GitHub Actions + Pages, plus one cron-only Cloudflare Worker. No tenant on the box, no self-hosted monitoring box.
 
-- **Prober:** `.github/workflows/probe.yml` — scheduled Actions workflow, every 15 min nominally (plus `workflow_dispatch` and `push`). GitHub Actions scheduled runs on public free-tier repos are routinely delayed or dropped under load — observed cadence can slip to one run per few hours. Accepted as the trade-off for not standing up external infrastructure (a Cloudflare Worker to poke `workflow_dispatch` would solve it; deferred until the slippage actually hurts). Runs [`probe.py`](../../probe.py) against the targets in [`targets.toml`](../../targets.toml), writes `status.json`, POSTs state transitions to notify.vyoh.gg, deploys the whole thing to Pages. The Pages deploy steps run with `if: !cancelled()` so the page keeps updating even when the probe step failed delivery.
+- **Prober:** `.github/workflows/probe.yml` — Actions workflow, every 15 min. The primary trigger is [`worker/`](../../worker/), a cron-only Cloudflare Worker that calls `workflow_dispatch` every 15 min; the workflow's own `schedule` stays as an hourly backup at `:37` (off the hour, where GitHub sheds load hardest), plus `push`. Runs [`probe.py`](../../probe.py) against the targets in [`targets.toml`](../../targets.toml), writes `status.json`, POSTs state transitions to notify.vyoh.gg, deploys the whole thing to Pages. The Pages deploy steps run with `if: !cancelled()` so the page keeps updating even when the probe step failed delivery.
 - **Page:** [`index.html`](../../index.html) in the repo root. Fetches `status.json` and renders a hero headline + grouped host rows with per-row uptime % and current streak. Vanilla JS, no build step. One self-hosted font ([`fonts/inter.woff2`](../../fonts/inter.woff2), ~48 KB) carries the typography; favicon is a state-coloured rounded badge generated inline. Deliberate accent (indigo `#4f46e5` light / `#818cf8` dark) picked to sit outside the status palette so brand doesn't fight state.
 - **Alerting (two layers):** routine transitions `POST` to `https://notify.vyoh.gg/messages` per the hub's contract (`key`/`title`/`body`/`url`, bearer auth; no `source` in the body — the hub infers it from the secret). Credentials come from repo secrets `NOTIFY_HUB_URL` + `NOTIFY_HUB_SECRET` (scoped per-source — a leak lets an attacker post status-page alerts, nothing more). When the hub is unreachable — overwhelmingly because the netcup box it runs on is down — the POST fails, `probe.py` exits non-zero, the workflow goes red, and GitHub emails the workflow-failure. That email **is** the box-down alert. No Discord webhook URL ever lives in this repo.
 - **State store:** `status.json` on Pages itself. The workflow fetches the previous `status.json` from `https://status.vyoh.gg/status.json` at the start of each run, so transitions survive across runs without committing anything back to git.
@@ -18,6 +18,8 @@ Everything runs on GitHub-owned infrastructure. No tenant on the netcup box, no 
 Decided against the earlier on-box-prober + healthchecks.io shape (2026-10-07..08 history) on simplicity grounds: moving the prober off-box deletes the need for silence-detection entirely, which was healthchecks.io's whole job here. Backups still use healthchecks.io; the status page doesn't.
 
 Decided 2026-10-10 to route alerts via notify.vyoh.gg rather than directly to a Discord webhook. The webhook URL stays in notify-hub where it belongs (per the hub's own contract: one credential, one holder). The box-down case notify-hub cannot carry is handled by workflow-failure email instead, which needs no secret.
+
+Decided 2026-10-12 to add the Worker trigger. GitHub's `schedule` on this free-tier public repo delivered one run per 3–7h against the 90-min stale threshold, so the banner was up most of the time and outages surfaced hours late. The Worker only triggers; probing stays in Actions, so `probe.py` and the failure-email fallback are untouched. Triggering from the netcup box instead was rejected: it would stop probing exactly when the box is down. The token is a fine-grained PAT scoped to this repo with Actions: write and no expiry, stored only as the Worker secret `GITHUB_TOKEN`. Wrangler is pinned via `npx wrangler@4.142.0`; no `package.json`.
 
 ## Targets
 
@@ -47,24 +49,26 @@ Two states only:
 
 Transitions POST one envelope each to notify.vyoh.gg. Keys include the probe cycle's timestamp (`{host}:{state}:{checked_at}`), so a down→up→down→up sequence delivers four distinct alerts rather than being deduped. Already-down hosts don't re-notify every tick; only transitions do.
 
-The page detects the third case itself: if `status.json`'s `generated_at` is older than 90 minutes, a yellow banner says "prober may be delayed." The 90-min threshold is deliberately generous — Actions scheduled runs on free-tier public repos routinely slip 30–60 min, and we don't want to cry wolf on normal GitHub flakiness. No alerts fire for staleness.
+The page detects the third case itself: if `status.json`'s `generated_at` is older than 90 minutes, a yellow banner says "prober may be delayed." The 90-min threshold means several consecutive Worker triggers failed, so it doesn't cry wolf on one missed tick. The hourly GitHub backup alone routinely overshoots it (its scheduled runs slip by hours), so the banner showing is the signal that the Worker has stopped. No alerts fire for staleness.
 
 ## Known gaps
 
 - **IPv6 untested.** GitHub-hosted runners are IPv4-only. If v6 coverage ever matters, swap the workflow to Cloudflare Workers (1-min cadence, v6-capable) or add a second cadence from a v6-capable runner. Both are off-box, both post to the same shape.
-- **Freshness, not instant.** Actions scheduled runs can slip to 10-15 min under GitHub-wide load. Acceptable for status-page use; not an incident pager.
+- **Freshness, not instant.** ~15-min cadence from the Worker. Acceptable for status-page use; not an incident pager.
+- **Trigger failure is quiet.** If the Worker's dispatch fails (token revoked, Cloudflare cron outage), the failure only shows in the Worker's cron event log. The page degrades to the hourly GitHub schedule (which itself slips by hours) and the stale banner shows; no alert fires.
 - **Watch-the-watcher at the Actions level.** If GitHub Actions itself is down, nothing probes. Visible on GitHub's own status page; the staleness banner catches the subset that affects us.
 
 ## Next action
 
-1. **GitHub Pages:** repo settings → Pages → Source: "GitHub Actions". First `workflow_dispatch` run of `probe.yml` publishes the site.
-2. **DNS:** CNAME `status` → `sergeantjonas.github.io`. Verify with `dig +short status.vyoh.gg`.
-3. **TLS:** GitHub auto-provisions once DNS resolves. Can take minutes.
+1. **GitHub Pages:** repo settings → Pages → Source: "GitHub Actions". First `workflow_dispatch` run of `probe.yml` publishes the site. (Done.)
+2. **DNS:** CNAME `status` → `sergeantjonas.github.io`. Verify with `dig +short status.vyoh.gg`. (Done.)
+3. **TLS:** GitHub auto-provisions once DNS resolves. Can take minutes. (Done.)
 4. **GitHub failure email:** github.com → Settings → Notifications → confirm "Send notifications for failed workflows only" (or equivalent) is on. This is the box-down alert path; without it, the fallback is silent.
 5. **Add a `status` source to notify.vyoh.gg.** On the box, append `SOURCE_STATUS_SECRET=…` and `SOURCE_STATUS_DISCORD_URL=https://discord.com/api/webhooks/…` to `/srv/notify/.env`, then redeploy the stack so the env is read. The secret must be ≥32 printable-ASCII chars.
-6. **Add repo secrets:** Settings → Secrets and variables → Actions → add `NOTIFY_HUB_URL=https://notify.vyoh.gg/messages` and `NOTIFY_HUB_SECRET=<the status source secret>`.
+6. **Add repo secrets:** Settings → Secrets and variables → Actions → add `NOTIFY_HUB_URL=https://notify.vyoh.gg/messages` and `NOTIFY_HUB_SECRET=<the status source secret>`. (Done 2026-10-10.)
 7. **Drill:** `gh workflow run probe` from the laptop. First run after secrets land → no transitions → exit 0. Then edit `targets.toml` to add a bogus host like `broken.vyoh.gg`, push, confirm the Discord message arrives via the hub on the next scheduled run. Also `pnpm discord:test status` on the hub box to confirm the webhook routes correctly before relying on it.
 8. **Add Bytesized hostnames** to `targets.toml` as their nginx vhosts land on netcup. (Done 2026-10-10 for the initial sweep.)
+9. **Deploy the trigger Worker.** From `worker/`: `npx wrangler@4.142.0 login` (once per machine), `npx wrangler@4.142.0 secret put GITHUB_TOKEN` (paste the PAT; confirm creating the Worker if asked), `npx wrangler@4.142.0 deploy`. A fresh Cloudflare account must have a workers.dev subdomain before cron triggers will register, even with `workers_dev: false` — opening Workers & Pages in the dashboard once creates it. Verify: `gh run list --event workflow_dispatch` shows a run within 15 min. (Done 2026-10-12.)
 
 ## History
 
