@@ -204,7 +204,7 @@
 
 		.history {
 			display: grid;
-			grid-template-columns: repeat(288, 1fr);
+			grid-template-columns: repeat(96, 1fr);
 			gap: 0;
 			height: 18px;
 			width: 100%;
@@ -293,7 +293,8 @@
 
 	<script>
 		const STALE_MINUTES = 90;
-		const HISTORY_ENTRIES = 288;
+		const HISTORY_SLOTS = 96;
+		const SLOT_SECONDS = 15 * 60;
 		const GROUP_ORDER = ['critical', 'bytesized'];
 		const GROUP_LABEL = {
 			critical: 'Critical',
@@ -326,7 +327,12 @@
 			if (m < 60) return `${m}m`;
 			const h = m / 60;
 			if (h < 24) return h % 1 < 0.1 ? `${Math.round(h)}h` : `${h.toFixed(1)}h`;
-			return `${Math.round(h / 24)}d`;
+			return `${Math.floor(h / 24)}d`;
+		}
+
+		// History is pruned to just under 24h; don't let a full window read "23.8h".
+		function fmtWindow(seconds) {
+			return seconds >= 23.5 * 3600 ? '24h' : fmtDuration(seconds);
 		}
 
 		// --- Favicon --------------------------------------------------------
@@ -368,36 +374,45 @@
 			return (up / history.length) * 100;
 		}
 
-		function currentStreak(history, state) {
+		function currentStreak(t, history) {
 			if (!history || history.length === 0) return null;
 			// Walk backwards from the most recent entry while state matches.
 			let i = history.length - 1;
 			const [latestTs] = history[i];
-			while (i > 0 && history[i - 1][1] === state) i--;
-			const startTs = history[i][0];
-			return latestTs - startTs; // seconds elapsed in the current streak
+			while (i > 0 && history[i - 1][1] === t.state) i--;
+			if (i > 0) return { seconds: latestTs - history[i][0] };
+			// The streak covers all retained history, so the last probe in the
+			// opposite state bounds it. Never flipped: only a lower bound.
+			const since = t.state === 'up' ? t.last_fail : t.last_ok;
+			if (since) return { seconds: latestTs - since };
+			if (history.length === 1) return null;
+			return { seconds: latestTs - history[0][0], atLeast: true };
 		}
 
 		// --- History strip --------------------------------------------------
 
-		function renderHistory(history) {
+		// Fixed wall-clock slots rather than one bar per probe, so the strip
+		// spans 24h whatever the cadence and a missed run shows as a gap.
+		function renderHistory(history, endTs) {
 			const strip = document.createElement('div');
 			strip.className = 'history';
-			const padCount = HISTORY_ENTRIES - history.length;
-			const frag = document.createDocumentFragment();
-			for (let i = 0; i < padCount; i++) {
-				const bar = document.createElement('span');
-				bar.className = 'h-bar';
-				bar.title = 'no data yet';
-				frag.appendChild(bar);
-			}
+			const firstSlot = Math.floor(endTs / SLOT_SECONDS) - HISTORY_SLOTS + 1;
+			const slots = new Array(HISTORY_SLOTS).fill(null);
 			for (const [ts, state] of history) {
+				const i = Math.floor(ts / SLOT_SECONDS) - firstSlot;
+				if (i < 0 || i >= HISTORY_SLOTS) continue;
+				// Worst wins within a slot: one failed probe marks it down.
+				if (slots[i] !== 'down') slots[i] = state;
+			}
+			const frag = document.createDocumentFragment();
+			slots.forEach((state, i) => {
 				const bar = document.createElement('span');
 				bar.className = 'h-bar';
-				bar.dataset.state = state;
-				bar.title = `${fullFmt.format(new Date(ts * 1000))} · ${state}`;
+				const start = fullFmt.format(new Date((firstSlot + i) * SLOT_SECONDS * 1000));
+				if (state) bar.dataset.state = state;
+				bar.title = `${start} · ${state || 'no data'}`;
 				frag.appendChild(bar);
-			}
+			});
 			strip.appendChild(frag);
 			return strip;
 		}
@@ -482,14 +497,14 @@
 				ul.className = 'group-list';
 
 				for (const t of groups[name]) {
-					ul.appendChild(renderRow(t));
+					ul.appendChild(renderRow(t, data.generated_at || now));
 				}
 				section.appendChild(ul);
 				container.appendChild(section);
 			}
 		}
 
-		function renderRow(t) {
+		function renderRow(t, endTs) {
 			const li = document.createElement('li');
 			li.className = 'row';
 			li.dataset.state = t.state;
@@ -524,21 +539,21 @@
 			main.className = 'row-main';
 
 			const history = Array.isArray(t.history) ? t.history : [];
-			main.appendChild(renderHistory(history));
+			main.appendChild(renderHistory(history, endTs));
 
 			const meta = document.createElement('div');
 			meta.className = 'row-meta';
 			const uptime = uptimePercent(history);
-			const streak = currentStreak(history, t.state);
+			const streak = currentStreak(t, history);
 			const left = document.createElement('span');
 			left.className = 'streak';
 			left.textContent = streak !== null
-				? `${t.state === 'up' ? 'Up' : 'Down'} for ${fmtDuration(streak)}`
+				? `${t.state === 'up' ? 'Up' : 'Down'} for ${streak.atLeast ? `${fmtWindow(streak.seconds)}+` : fmtDuration(streak.seconds)}`
 				: '—';
 			const right = document.createElement('span');
 			if (uptime !== null && history.length >= 2) {
 				const windowSec = history[history.length - 1][0] - history[0][0];
-				right.textContent = `${uptime.toFixed(uptime >= 99.95 ? 0 : 2)}% uptime · over ${fmtDuration(windowSec)}`;
+				right.textContent = `${uptime.toFixed(uptime >= 99.95 ? 0 : 2)}% uptime · over ${fmtWindow(windowSec)}`;
 			} else if (uptime !== null) {
 				right.textContent = `${uptime.toFixed(0)}% uptime`;
 			} else {
@@ -574,7 +589,7 @@
 				const main = document.createElement('div');
 				main.className = 'row-main';
 				const strip = document.createElement('div'); strip.className = 'history';
-				for (let j = 0; j < HISTORY_ENTRIES; j++) {
+				for (let j = 0; j < HISTORY_SLOTS; j++) {
 					const bar = document.createElement('span'); bar.className = 'h-bar';
 					strip.appendChild(bar);
 				}

@@ -29,9 +29,10 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-# One entry per probe cycle. 288 ≈ 24h at the current 5-min cadence.
+# One entry per probe cycle, kept for the page's 24h strip. Pruned by age
+# rather than count because the cadence depends on which trigger fires.
 # A single bad probe shows as one red tick, not a whole day going red.
-HISTORY_ENTRIES = 288
+HISTORY_WINDOW = 24 * 3600
 
 REPO = Path(__file__).resolve().parent
 TARGETS = REPO / "targets.toml"
@@ -117,8 +118,8 @@ def load_previous() -> dict[str, dict]:
 
 
 def update_history(prev_history: list, ts: int, state: str) -> list:
-	"""Append this probe's result to the per-probe history, cap at
-	HISTORY_ENTRIES, chronologically ordered oldest-first."""
+	"""Append this probe's result to the per-probe history, drop entries
+	older than HISTORY_WINDOW, chronologically ordered oldest-first."""
 	# Normalise defensively — a prior malformed status.json shouldn't crash.
 	history = []
 	for entry in prev_history or []:
@@ -126,9 +127,8 @@ def update_history(prev_history: list, ts: int, state: str) -> list:
 			history.append([entry[0], entry[1]])
 
 	history.append([ts, state])
-	if len(history) > HISTORY_ENTRIES:
-		history = history[-HISTORY_ENTRIES:]
-	return history
+	cutoff = ts - HISTORY_WINDOW
+	return [entry for entry in history if entry[0] > cutoff]
 
 
 def main() -> None:
