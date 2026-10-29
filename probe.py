@@ -23,6 +23,7 @@ No `source` field; the hub infers it from the secret. Response is 202 with
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import socket
@@ -68,6 +69,13 @@ def probe_once(host: str, path: str, expected: list[int]) -> tuple[bool, int, st
 		code = e.code
 	except (urllib.error.URLError, socket.timeout, TimeoutError, ssl.SSLError, ConnectionError) as e:
 		return False, 0, str(e)
+	except http.client.HTTPException as e:
+		# A malformed response (BadStatusLine, LineTooLong) escapes urllib
+		# unwrapped and would crash the run before status.json is written.
+		# repr, not str: str() is the raw status line, CRLF included. Capped
+		# because that line can run to 64 KiB and the hub 400s a body over
+		# 2000 chars, which would fail the run as a false box-down.
+		return False, 0, repr(e)[:200]
 	return (code in expected), code, None
 
 
