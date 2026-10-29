@@ -1,6 +1,6 @@
 # Status page
 
-**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Cloudflare Worker trigger deployed 2026-10-12; history strip moved to fixed 15-min slots over 24h 2026-10-12; alerts gated on in-run retries and two consecutive failed cycles 2026-10-29. Next action 4, 5 and 7 not yet confirmed done — no failure email is known to have arrived, including for the failed 2026-10-29 03:31 run, so 4 is likely off.
+**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Cloudflare Worker trigger deployed 2026-10-12; history strip moved to fixed 15-min slots over 24h 2026-10-12; alerts gated on in-run retries and two consecutive failed cycles 2026-10-29. Next action 5 and 7 not yet confirmed done. 4 confirmed on 2026-10-29, yet the failed 2026-10-29 03:31 run (actor `sergeantjonas`) produced no email the owner saw — check where GitHub routes notification email.
 
 One page that says whether each public site on the shared VPS answers. Watches every tenant and belongs to none of them.
 
@@ -69,7 +69,7 @@ The page detects the third case itself: if `status.json`'s `generated_at` is old
 1. **GitHub Pages:** repo settings → Pages → Source: "GitHub Actions". First `workflow_dispatch` run of `probe.yml` publishes the site. (Done.)
 2. **DNS:** CNAME `status` → `sergeantjonas.github.io`. Verify with `dig +short status.vyoh.gg`. (Done.)
 3. **TLS:** GitHub auto-provisions once DNS resolves. Can take minutes. (Done.)
-4. **GitHub failure email:** github.com → Settings → Notifications → confirm "Send notifications for failed workflows only" (or equivalent) is on. This is the box-down alert path; without it, the fallback is silent.
+4. **GitHub failure email:** github.com → Settings → Notifications → confirm "Send notifications for failed workflows only" (or equivalent) is on. This is the box-down alert path; without it, the fallback is silent. (Confirmed on 2026-10-29.)
 5. **Add a `status` source to notify.vyoh.gg.** On the box, append `SOURCE_STATUS_SECRET=…` and `SOURCE_STATUS_DISCORD_URL=https://discord.com/api/webhooks/…` to `/srv/notify/.env`, then redeploy the stack so the env is read. The secret must be ≥32 printable-ASCII chars.
 6. **Add repo secrets:** Settings → Secrets and variables → Actions → add `NOTIFY_HUB_URL=https://notify.vyoh.gg/messages` and `NOTIFY_HUB_SECRET=<the status source secret>`. (Done 2026-10-10.)
 7. **Drill:** `gh workflow run probe` from the laptop. First run after secrets land → no transitions → exit 0. Then edit `targets.toml` to add a bogus host like `broken.vyoh.gg`, push, confirm the Discord message arrives via the hub on the next scheduled run. Also `pnpm discord:test status` on the hub box to confirm the webhook routes correctly before relying on it.
