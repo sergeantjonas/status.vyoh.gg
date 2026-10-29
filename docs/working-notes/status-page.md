@@ -1,6 +1,6 @@
 # Status page
 
-**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Cloudflare Worker trigger deployed 2026-10-12; history strip moved to fixed 15-min slots over 24h 2026-10-12. Next action 4, 5 and 7 not yet confirmed done.
+**Status:** Active — off-box prober landed 2026-10-09; wired to notify.vyoh.gg 2026-10-10; Cloudflare Worker trigger deployed 2026-10-12; history strip moved to fixed 15-min slots over 24h 2026-10-12; alerts gated on in-run retries and two consecutive failed cycles 2026-10-29. Next action 4, 5 and 7 not yet confirmed done — no failure email is known to have arrived, including for the failed 2026-10-29 03:31 run, so 4 is likely off.
 
 One page that says whether each public site on the shared VPS answers. Watches every tenant and belongs to none of them.
 
@@ -45,16 +45,22 @@ Discovery is manual: `ssh vyoh 'grep -h server_name /etc/nginx/sites-enabled/*.c
 Two states only:
 
 - **up** — probe returned an expected status code.
-- **down** — probe failed or returned an unexpected code. The row shows the code or error.
+- **down** — every attempt in the cycle failed or returned an unexpected code. The row shows the code or error.
 
-Transitions POST one envelope each to notify.vyoh.gg. Keys include the probe cycle's timestamp (`{host}:{state}:{checked_at}`), so a down→up→down→up sequence delivers four distinct alerts rather than being deduped. Already-down hosts don't re-notify every tick; only transitions do.
+Each cycle tries a host up to three times, 5 s apart, and only calls it down if all three fail. Hosts are probed concurrently so a dead box costs one host's worth of timeouts, not fifteen. Every host's outcome goes to the Actions log (kept 90 days), including the failed attempts a retry absorbed — the deployed `status.json` artifacts expire after a day and only keep the last cycle's code.
+
+Alerts are gated on two fields `status.json` carries per host: `fail_streak` (consecutive down cycles) and `alerted` (a down alert has gone out for the current outage). A down alert fires when `fail_streak` reaches 2 (`CONFIRM_CYCLES`); a recovery alert fires only when `alerted` is set, so a one-cycle blip still paints a red tick on the strip but sends nothing. `alerted` is set when the alert is attempted, not delivered — an undelivered alert fails the workflow and the failure email stands in for it, which keeps a box-down outage to one email rather than one per cycle. Once one POST fails (after its own retries on network errors and 5xx), the remaining alerts in that run are skipped and logged: the hub is almost certainly down with the box.
+
+Keys include the probe cycle's timestamp (`{host}:{state}:{checked_at}`), so a down→up→down→up sequence that clears the gate each time delivers four distinct alerts rather than being deduped. Retries within one run reuse the key, so the hub dedupes a POST that landed but lost its response.
+
+Decided 2026-10-29 to gate alerts. Over the 24h before, 10 hosts went down for exactly one probe and were up on the next; each sent a down and a recovered message. Nine of the ten were bytesized hosts. Two causes showed in the logs: runner-side network failure (03:31 — three hosts down and the notify POST itself failed with `Errno 101 Network is unreachable`, which also failed the workflow as a false box-down) and momentary 502s from the netcup → bytesized proxy (radarr 14:31). Retries cover the first; the two-cycle gate covers anything that clears before the next run (15 min at the Worker cadence; an hourly-backup or push run landing in between shortens that). Cost: a real outage alerts 15–30 min after it starts rather than within 15.
 
 The page detects the third case itself: if `status.json`'s `generated_at` is older than 90 minutes, a yellow banner says "prober may be delayed." The 90-min threshold means several consecutive Worker triggers failed, so it doesn't cry wolf on one missed tick. The hourly GitHub backup alone routinely overshoots it (its scheduled runs slip by hours), so the banner showing is the signal that the Worker has stopped. No alerts fire for staleness.
 
 ## Known gaps
 
 - **IPv6 untested.** GitHub-hosted runners are IPv4-only. If v6 coverage ever matters, swap the workflow to Cloudflare Workers (1-min cadence, v6-capable) or add a second cadence from a v6-capable runner. Both are off-box, both post to the same shape.
-- **Freshness, not instant.** ~15-min cadence from the Worker. Acceptable for status-page use; not an incident pager.
+- **Freshness, not instant.** ~15-min cadence from the Worker, and a down alert needs two consecutive failed cycles, so it lands 15–30 min after an outage starts. Acceptable for status-page use; not an incident pager.
 - **Trigger failure is quiet.** If the Worker's dispatch fails (token revoked, Cloudflare cron outage), the failure only shows in the Worker's cron event log. The page degrades to the hourly GitHub schedule (which itself slips by hours) and the stale banner shows; no alert fires.
 - **Watch-the-watcher at the Actions level.** If GitHub Actions itself is down, nothing probes. Visible on GitHub's own status page; the staleness banner catches the subset that affects us.
 

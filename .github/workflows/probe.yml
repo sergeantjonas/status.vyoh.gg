@@ -33,9 +33,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Retried because the fallback resets every host's alert state, which
+      # loses the recovery alert for any outage in progress.
       - name: Fetch previous status.json
         run: |
-          curl -fsS -o status.json https://status.vyoh.gg/status.json \
+          curl -fsS --retry 3 --retry-all-errors -o status.json https://status.vyoh.gg/status.json \
             || echo '{"generated_at":0,"targets":[]}' > status.json
 
       - name: Probe
