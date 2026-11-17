@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      url: ${{ steps.deploy.outputs.page_url || steps.deploy_retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -65,6 +65,22 @@ jobs:
         with:
           path: _site
 
+      # Retried once because deploy-pages has no retry of its own and fails on
+      # GitHub-side blips: most often it lists the run's artifacts before the
+      # upload above is visible, occasionally a Pages 500 or an ID-token
+      # timeout. A failed run sends the failure email, which would be a false
+      # box-down alert.
       - id: deploy
+        name: Deploy
         if: ${{ !cancelled() }}
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+
+      - name: Wait before retrying deploy
+        if: ${{ !cancelled() && steps.deploy.outcome == 'failure' }}
+        run: sleep 20
+
+      - id: deploy_retry
+        name: Retry deploy
+        if: ${{ !cancelled() && steps.deploy.outcome == 'failure' }}
         uses: actions/deploy-pages@v4
